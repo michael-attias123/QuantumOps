@@ -1,0 +1,14 @@
+[project]
+name = "qops-stages"
+version = "0.0.1"
+description = "L3 stage plugins: error mitigation, QEC decoders, ask/tell optimizers"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["qops-core"]
+
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+qops-core = { workspace = true }

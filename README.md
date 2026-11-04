@@ -1,5 +1,7 @@
 # QuantumOps
 
+[![ci](https://github.com/michael-attias123/QuantumOps/actions/workflows/ci.yml/badge.svg)](https://github.com/michael-attias123/QuantumOps/actions/workflows/ci.yml)
+
 A GitOps-driven Kubernetes platform for **hybrid quantum-classical workloads** (VQE, QAOA, quantum error
 correction). Researchers write plain Qiskit; the platform runs it across CPU, QPU and GPU without anything sitting
 idle while jobs wait in cloud quantum queues.
@@ -22,5 +24,15 @@ GitOps for everything (including Vault config, DB schema and experiment runs) ·
 - [Roadmap](docs/ROADMAP.md): phases P0–P12 with Definitions of Done
 - [Original blueprint](docs/reference/original-blueprint.md): the starting idea
 
+## Quickstart (any computer)
+Requirements: `git` and [uv](https://docs.astral.sh/uv/).
+
+```bash
+git clone https://github.com/michael-attias123/QuantumOps.git && cd QuantumOps
+make verify-p0
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for make targets and rules, and [docs/adr/](docs/adr/) for key decisions.
+
 ## Status
-Design complete; implementation starts at **P0 — Foundations**.
+**P0 — Foundations** done (repo skeleton, uv workspace, lint/test, CI on amd64 + arm64). Next: **P1 — L0 contract + local runtime**.

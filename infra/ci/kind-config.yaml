@@ -1,0 +1,12 @@
+# kind cluster used by CI end-to-end tests (e2e.yml, from P6).
+# Mirrors the real cluster's node pools via the qops.io/pool label.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: qops-ci
+nodes:
+  - role: control-plane
+    labels:
+      qops.io/pool: system
+  - role: worker
+    labels:
+      qops.io/pool: cpu
