@@ -17,10 +17,11 @@ idle while a job waits in a cloud QPU queue.
 | **L0 · Code** | Git repo (`algorithms/`) | Pure Qiskit. No decorators, no infrastructure imports |
 | **L1 · CPU** | K8s CPU pool | Build circuits → mitigation/QEC *prepare* → transpile → cost guard → submit → **exit** |
 | **L2 · QPU** | External quantum API | IBM Quantum · IonQ simulator · Braket local simulator · in-cluster QPU emulator |
-| **L3 · GPU/CPU** | K8s GPU pool (CPU fallback) | Hydrate state → error mitigation + QEC decoding → optimizer step → finalize or loop to L1 |
+| **L3 · GPU/CPU** | K8s CPU pool + **remote free GPU via API** (Kaggle) | Hydrate state → error mitigation + QEC decoding → optimizer step → finalize or loop to L1. Heavy stages are submitted to the remote GPU *exactly like a QPU job* |
 
 ### Constraints
-- **Everything on Kubernetes**: local k3d first, cloud later (provider decided in P12).
+- **Everything on Kubernetes**: one always-on **k3s cluster on Oracle Cloud Always Free** (ARM, $0), reachable from any of
+  your computers over **Tailscale**. The cluster is CPU-only; GPU compute comes from **Kaggle through its API**.
 - **Vault** holds every credential; nothing secret is ever in Git.
 - **GitOps for everything**: platform, configuration, Vault config, DB schema, *and experiment runs*.
 - **$0 budget.** Every component uses OSS or a free tier. Paid paths are blocked by default (see [§15](#15-free-tier-budget--paid-tripwires)).
@@ -30,7 +31,8 @@ idle while a job waits in a cloud QPU queue.
 
 ## 2. Design principles
 
-1. **Zero-idle compute.** No pod exists while a job is queued on the QPU. The QPU wait is the boundary between workflows.
+1. **Zero-idle compute.** No pod exists while a job is queued on a remote QPU *or* remote GPU. Every remote wait is a
+   boundary between workflows.
 2. **Pure researcher code.** The platform infers the execution loop from a declared `kind`. Researcher code never imports the platform.
 3. **State hydration.** Every iteration snapshot (algorithm state, optimizer state, seeds, circuits, raw results) is persisted
    before a pod exits, and rehydrated by the next pod.
@@ -54,16 +56,16 @@ flowchart TB
     CI["GitHub Actions → GHCR images"]
   end
 
-  subgraph K8S["Kubernetes (k3d local · cloud in P12)"]
+  subgraph K8S["k3s on OCI Always Free (ARM, CPU-only) · access via Tailscale"]
     ARGOCD["Argo CD<br/>app-of-apps"]
     VAULT["Vault<br/>KV · DB engine · k8s auth"]
     ESO["External Secrets Operator"]
     QX["QuantumExperiment CRs"]
     EVS["Argo Events<br/>resource + webhook EventSources · Sensors"]
     L1["L1 CPU pod<br/>prepare + submit"]
-    TRK["qpu-tracker<br/>poll · fetch · outbox"]
+    TRK["job-tracker<br/>poll QPU + GPU jobs · fetch · outbox"]
     EMU["qpu-emulator<br/>Aer + noise + queue delay"]
-    L3["L3 GPU/CPU pod<br/>mitigate · decode · optimize"]
+    L3["L3 CPU pod<br/>mitigate · decode · optimize"]
     OBS["Prometheus · Grafana · Loki"]
   end
 
@@ -71,6 +73,7 @@ flowchart TB
     IBM["IBM Quantum Open Plan"]
     IONQ["IonQ cloud simulator"]
     SUPA["Supabase<br/>Postgres + Storage"]
+    KAG["Kaggle GPU<br/>kernels API (free quota)"]
   end
 
   DEP --> ARGOCD
@@ -84,6 +87,9 @@ flowchart TB
   L1 -- submit --> IBM & IONQ & EMU
   TRK -- poll / results --> IBM & IONQ & EMU
   TRK -- webhook --> EVS --> L3
+  L3 -- "heavy stage" --> KAG
+  TRK -- "status / output" --> KAG
+  KAG -. "signed URLs only" .-> SUPA
   L3 -- "next iteration" --> L1
   L1 & L3 & TRK <--> SUPA
   VAULT -. "short-lived creds" .-> L1 & L3 & TRK
@@ -103,9 +109,10 @@ sequenceDiagram
   participant E as Argo Events
   participant W1 as L1 CPU pod
   participant Q as QPU provider
-  participant T as qpu-tracker
+  participant T as job-tracker
   participant DB as Supabase
-  participant W3 as L3 GPU pod
+  participant W3 as L3 CPU pod
+  participant K as Kaggle GPU
 
   R->>G: PR adds experiments/vqe-h2.yaml → merge
   A->>G: pull (sync)
@@ -123,6 +130,12 @@ sequenceDiagram
   T->>E: POST qpu-job-ready (outbox dispatcher)
   E->>W3: Workflow qops-iteration
   W3->>DB: claim iteration (READY→POSTPROCESSING), hydrate
+  opt heavy stage (accelerator remote-gpu)
+    W3->>K: push kernel (pinned qops-stages + signed input/output URLs)
+    Note over W3: pod exits — 0 pods while the GPU job runs
+    T->>K: status / output → Storage, outbox gpu-job-ready
+    E->>W3: Workflow continues postprocess on CPU
+  end
   W3->>W3: mitigation / decoding / optimizer.tell
   alt converged or budget hit
     W3->>DB: finalize run (SUCCEEDED), patch CR status
@@ -143,14 +156,15 @@ sequenceDiagram
 | External Secrets | `external-secrets` | Sync static Vault KV into K8s Secrets | ESO |
 | Argo Workflows | `argo` | Runs L1/L3 pods as workflows | Argo Workflows (controller + server UI) |
 | Argo Events | `argo-events` (controller) | EventBus, EventSources, Sensors (objects live in `qops-runs`) | Argo Events + NATS JetStream EventBus |
-| qpu-tracker | `qops-system` | Poll in-flight QPU jobs, fetch results, outbox dispatch, `/metrics` | Python asyncio |
-| qpu-emulator | `qops-system` | Free async "fake QPU": queue delay, noise, failure injection | FastAPI + Qiskit Aer (optional GPU) |
-| Workflow pods | `qops-runs` | L1 CPU and L3 GPU/CPU executions | `qops-runtime-cpu` / `qops-runtime-gpu` images |
+| job-tracker | `qops-system` | Poll in-flight remote QPU **and GPU** jobs, fetch results, outbox dispatch, `/metrics` | Python asyncio |
+| qpu-emulator | `qops-system` | Free async "fake QPU": queue delay, noise, failure injection | FastAPI + Qiskit Aer (CPU) |
+| Workflow pods | `qops-runs` | L1 and L3 executions (CPU) | `qops-runtime` image (multi-arch) |
 | Dev runs | `qops-dev` | CLI-submitted runs (not managed by Argo CD) | same as above |
-| NVIDIA device plugin | `nvidia-device-plugin` | Expose `nvidia.com/gpu`, time-slicing ×4 | NVIDIA k8s-device-plugin |
+| Tailscale operator | `tailscale` | Expose UIs and the API privately on the tailnet (`*.ts.net`, HTTPS) | Tailscale Kubernetes operator |
 | Monitoring | `monitoring` | Metrics, logs, dashboards, alerts | kube-prometheus-stack, Loki, Alloy |
-| Policy | `kyverno` | Admission policies (P11) | Kyverno |
+| Policy | `kyverno` | Admission policies (P12) | Kyverno |
 | State | external | Runs, iterations, jobs, outbox, usage, artifacts | Supabase Free (Postgres + Storage) |
+| Remote GPU | external | Heavy L3 stages (GPU decoding, GPU simulation) | Kaggle kernels API (free weekly GPU quota) |
 
 ---
 
@@ -225,7 +239,7 @@ spec:
     mitigation: [m3, { zne: { scales: [1, 3, 5], extrapolation: richardson } }]
     decoder: null           # pymatching | cudaq-qec (qec-memory only)
   optimizer: { name: spsa, maxiter: 40, seed: 7 }
-  accelerator: auto         # auto | gpu | cpu
+  accelerator: auto         # auto | remote-gpu | cpu
   budget: { maxIterations: 50, maxQpuSeconds: 120, allowPaid: false }
   suspend: false            # true → cancel run (also on CR deletion)
   runRevision: 1            # bump to re-run an unchanged experiment
@@ -259,6 +273,9 @@ stateDiagram-v2
   READY --> DISPATCHED: webhook delivered
   DISPATCHED --> POSTPROCESSING: L3 claim (conditional UPDATE)
   READY --> POSTPROCESSING
+  POSTPROCESSING --> GPU_SUBMITTED: heavy stage
+  GPU_SUBMITTED --> GPU_READY: tracker stored GPU output
+  GPU_READY --> POSTPROCESSING: continue on CPU
   POSTPROCESSING --> DONE
   SUBMITTED --> FAILED
   QUEUED --> FAILED
@@ -281,7 +298,8 @@ stateDiagram-v2
 |---|---|---|
 | `experiment-start` | resource EventSource (CR ADD/UPDATE) | Workflow `qops-run`: `init-run` → `prepare-submit(0)` |
 | `qpu-job-ready` | webhook EventSource (tracker outbox) | Workflow `qops-iteration`: `postprocess(n)` → `finalize` or `prepare-submit(n+1)` |
-| `qpu-job-failed` | webhook EventSource | Workflow `handle-failure`: resubmit up to N times, otherwise fail the run |
+| `gpu-job-ready` | webhook EventSource (tracker outbox) | Workflow `qops-iteration` resumes `postprocess(n)` with GPU output |
+| `qpu-job-failed` / `gpu-job-failed` | webhook EventSource | Workflow `handle-failure`: resubmit up to N times (GPU jobs may fall back to CPU), otherwise fail the run |
 | `experiment-cancel` | resource EventSource (CR DELETE or `suspend: true`) | Workflow `cancel-run`: `provider.cancel` → CANCELLED |
 
 ---
@@ -305,7 +323,7 @@ class QuantumProvider(Protocol):
 
 | Provider | Backends | Free? | Purpose |
 |---|---|---|---|
-| `emulator` | Aer + fake-backend noise models (optionally Aer-GPU) | ✅ | dev, CI, chaos testing (configurable queue delay and failure rate), large QEC runs |
+| `emulator` | Aer + fake-backend noise models | ✅ | dev, CI, chaos testing (configurable queue delay and failure rate), large QEC runs |
 | `ibm` | IBM Quantum via qiskit-ibm-runtime SamplerV2 (job/batch mode; Open Plan has no sessions) | ✅ 10 QPU-min/month | real hardware |
 | `ionq` | IonQ cloud simulator (with noise models) via qiskit-ionq | ✅ simulator only | second real remote async API |
 | `braket` | Braket local simulator; managed sims/QPUs are paid | ✅ local only | adapter proven; paid devices blocked |
@@ -315,7 +333,7 @@ class QuantumProvider(Protocol):
   - **USD > 0:** the run is denied unless **both** `spec.budget.allowPaid: true` **and** Vault `kv/qops/policy.paid_enabled = true`.
   - **IBM Open Plan:** the run is denied if monthly `qpu_usage` plus the estimate would exceed 80% of 600 s.
   - **Run budget:** the run is denied if `spec.budget.maxQpuSeconds` would be exceeded.
-  - A Kyverno policy (P11) independently rejects paid-provider CRs that lack an approval annotation.
+  - A Kyverno policy (P12) independently rejects paid-provider CRs that lack an approval annotation.
 
 ---
 
@@ -328,17 +346,37 @@ results into corrected values. Stages register in the entry-point groups `qops.m
 |---|---|---|---|
 | `m3` | readout calibration circuits | M3 quasi-probability correction | CPU |
 | `zne` | gate folding at scale factors (Mitiq) | Richardson / exponential extrapolation | CPU |
-| `cdr` | near-Clifford training circuits | **Aer-GPU** simulation of training set → regression | GPU (CPU fallback) |
+| `cdr` | near-Clifford training circuits | simulation of training set → regression (Aer-GPU / cuStateVec on Kaggle when large) | CPU or remote GPU |
 | `pymatching` | QEC memory circuit + Stim circuit from same spec | DEM (noise from backend calibration) → MWPM decode → logical error rate | CPU |
-| `cudaq-qec` | same | GPU decoder (`nv-qldpc-decoder`), batched shots; `ldpc` BP+OSD as CPU fallback | GPU |
+| `cudaq-qec` | same | GPU decoder (`nv-qldpc-decoder`), batched shots, run on Kaggle; `ldpc` BP+OSD as CPU fallback | remote GPU |
 | `spsa` | — (ask: next parameter points) | tell: update from energies; JSON state | CPU |
 | `nevergrad` | ask | tell; pickled, versioned state | CPU |
 
-- `accelerator: auto` schedules on the GPU pool when a `nvidia.com/gpu` is allocatable and otherwise uses the CPU image.
-  The code path is the same (a cupy/numpy switch), and results must match within tolerance.
-- **Where the GPU actually helps:** CDR training-set simulation, batch decoding of large shot counts, and reference
-  noisy simulations. Small circuits are often just as fast on CPU, so the fallback is a first-class path, not a degraded one.
+- **Routing:** each stage declares `accelerator: cpu | remote-gpu | auto`. `auto` keeps small work on cluster CPU (a 1–2 min
+  Kaggle startup would dominate a VQE iteration) and sends large work (thresholds on shots/qubits/training-set size)
+  to the remote GPU. The code path is the same (a cupy/numpy switch), and results must match within tolerance.
+- **Where the GPU actually helps:** CDR training-set simulation, batch decoding of large shot counts, and large noisy
+  reference simulations. The CPU path is a first-class path, not a degraded one.
 - QEC scope: repetition codes d=3/5/7 (map well onto IBM heavy-hex), d=3 rotated surface code on the emulator.
+
+### 10.1 Remote GPU provider (Kaggle), used like a QPU
+
+The GPU is treated as a **remote accelerator provider**, with the same interface as the QPU adapter
+(`capabilities`, `estimate_cost`, `submit`, `status`, `result`, `cancel`) in `qops_providers.gpu`:
+
+| Provider | Free? | Notes |
+|---|---|---|
+| `kaggle` | ✅ ~30 GPU-hours/week (T4 / P100), no card | `kernels push` → `kernels status` → `kernels output`; phone verification needed for GPU; ~1–2 min startup |
+| `local-cpu` | ✅ | runs the same stage in-cluster; the fallback for every GPU stage |
+
+- **Job contents:** a private Kaggle kernel script that `pip install`s `qops-stages` from this public repo **at the pinned git
+  SHA**, downloads its input from a **1-hour Supabase signed URL**, and uploads its output to a **signed upload URL**.
+  Kaggle's base image already ships CUDA, cupy and torch.
+- **Least privilege:** the remote job never holds DB, Vault or QPU credentials, only the two signed URLs. The Kaggle API
+  key is in Vault (`kv/qops/providers/kaggle`).
+- **Quota guard:** a `gpu_usage` table tracks weekly GPU-hours. Submission is refused at ≥ 80% of the weekly quota, and
+  `auto` falls back to CPU.
+- **Tracking:** the same job-tracker polls Kaggle jobs (`remote_jobs.kind = gpu`) and emits `gpu-job-ready` through the outbox.
 
 ---
 
@@ -351,9 +389,10 @@ In CI and offline dev the same code runs against in-cluster **Postgres + MinIO**
 |---|---|
 | `runs` | id, experiment, generation, run_revision, kind, spec (jsonb), git_sha, image_digests, status, best_value, created_at |
 | `iterations` | run_id, n, status, state_ref, circuits_ref, results_ref, prep_meta (jsonb), metrics (jsonb), timestamps |
-| `qpu_jobs` | iteration_id, provider, backend, provider_job_id, status, queue_info, next_poll_at, attempts, qpu_seconds, error |
+| `remote_jobs` | iteration_id, kind (qpu/gpu), provider, backend, provider_job_id, status, queue_info, next_poll_at, attempts, qpu_seconds, error |
 | `outbox` | id, event_type, payload (jsonb), created_at, dispatched_at, attempts |
 | `qpu_usage` | provider, month, qpu_seconds, usd |
+| `gpu_usage` | provider, week, gpu_hours |
 | `backend_cache` | provider, backend, day, target_ref, calibration_ref |
 
 - **RLS is enabled on every table with no policies**, so the public PostgREST/anon path is fully denied. Access is only
@@ -373,11 +412,13 @@ Vault OSS, Raft storage (standalone), agent injector enabled, audit device on (s
 
 **Bootstrap (the only imperative step):** `scripts/vault-init.sh` initializes and unseals Vault, stores the keys *outside* the
 repo (`~/.qops/`), and enables k8s auth for vault-config-operator. Everything after that is declared as
-vault-config-operator CRs in Git. `make unseal` is needed after a local restart; the cloud phase moves to KMS auto-unseal.
+vault-config-operator CRs in Git. Vault uses **OCI KMS auto-unseal** (free tier), so no laptop is needed after a restart;
+the fallback is `make unseal` over Tailscale.
 
 | Path / role | Type | Consumers |
 |---|---|---|
 | `kv/qops/providers/ibm`, `…/ionq`, `…/braket` | KV v2 | L1 (prepare/submit), tracker |
+| `kv/qops/providers/kaggle` | KV v2 | L3 (submit GPU job), tracker |
 | `kv/qops/storage` | KV v2 (Supabase S3 keys) | L1, L3, tracker |
 | `kv/qops/policy` | KV v2 (`paid_enabled=false`) | cost guard |
 | `database/creds/qops-worker` | dynamic, TTL 1h / max 4h | L1, L3 pods (per-pod lease) |
@@ -392,11 +433,12 @@ vault-config-operator CRs in Git. `make unseal` is needed after a local restart;
 
 **Least privilege (k8s auth roles bound to ServiceAccounts):**
 
-| ServiceAccount | QPU tokens | DB | Storage |
-|---|---|---|---|
-| `qops-runtime-cpu` (L1) | ✅ | ✅ | ✅ |
-| `qops-runtime-gpu` (L3) | ❌ | ✅ | ✅ |
-| `qops-tracker` | ✅ | ✅ | ✅ |
+| ServiceAccount | QPU tokens | Kaggle key | DB | Storage |
+|---|---|---|---|---|
+| `qops-l1` | ✅ | ❌ | ✅ | ✅ |
+| `qops-l3` | ❌ | ✅ | ✅ | ✅ |
+| `job-tracker` | ✅ | ✅ | ✅ | ✅ |
+| remote Kaggle job | ❌ | ❌ | ❌ | signed URLs only |
 
 Secrets enter Vault only through `make seed-secrets` (interactive prompts). **gitleaks** runs in CI.
 
@@ -416,7 +458,8 @@ packages/                                  # uv workspace
   qops-tracker/    # status tracker + outbox dispatcher + metrics
   qops-emulator/   # in-cluster async fake QPU
   qops-cli/        # `qops` CLI
-images/{runtime-cpu,runtime-gpu,tracker,emulator}/Dockerfile
+images/{runtime,tracker,emulator}/Dockerfile      # linux/arm64 + linux/amd64
+kaggle/                                    # remote GPU kernel template + pinned requirements
 db/migrations/                             # dbmate SQL
 deploy/
   bootstrap/                               # Argo CD values + root Application
@@ -425,11 +468,11 @@ deploy/
   charts/qops/                             # CRD, WorkflowTemplates, EventBus/EventSources/Sensors, tracker,
                                            # emulator, ExternalSecrets, Vault CRs, RBAC, NetworkPolicies,
                                            # dashboards, Kyverno policies
-  envs/{local,ci}/                         # (+ envs/<cloud>/ in P12)
+  envs/{oci,ci}/                           # oci = the real cluster, ci = kind in GitHub Actions
 infra/
-  local/                                   # k3d config, k3s-CUDA image
+  oci/                                     # OpenTofu: VCN, 2× A1 VMs, k3s cloud-init, Tailscale, KMS
+  ci/                                      # kind config for e2e
   github/  supabase/                       # OpenTofu (repo settings, Supabase project)
-  <cloud>/                                 # OpenTofu (P12)
 scripts/                                   # bootstrap, vault-init, unseal, seed-secrets
 docs/                                      # ARCHITECTURE, ROADMAP, adr/, runbooks/, reference/
 Makefile
@@ -444,9 +487,9 @@ Makefile
 |---|---|
 | −2 | namespaces, CRDs |
 | −1 | Vault |
-| 0 | ESO, vault-config-operator, Argo Workflows, Argo Events, NVIDIA device plugin, monitoring |
+| 0 | ESO, vault-config-operator, Argo Workflows, Argo Events, Tailscale operator, monitoring |
 | 1 | qops config: ClusterSecretStore, ExternalSecrets, Vault CRs, EventBus, EventSources, Sensors, WorkflowTemplates, QuantumExperiment CRD |
-| 2 | DB migration PreSync Job, qpu-tracker, qpu-emulator |
+| 2 | DB migration PreSync Job, job-tracker, qpu-emulator |
 | 3 | `experiments/` |
 
 - Removing an experiment file prunes the CR, which cancels or archives the run.
@@ -456,7 +499,7 @@ Makefile
 | Workflow | Trigger | Steps |
 |---|---|---|
 | `ci.yml` | every PR | ruff, mypy, pytest (unit + local Aer runs), dbmate against a postgres service, helm lint, kubeconform, kyverno CLI tests, gitleaks |
-| `images.yml` | push to `main` | buildx + GHA cache → GHCR `qops-runtime-cpu`, `qops-runtime-gpu`, `qops-tracker`, `qops-emulator` (tag `sha-<short>`) → Trivy → SBOM + cosign keyless (P11) → bot commit of tags into `deploy/envs/local` (GITHUB_TOKEN commits do not retrigger CI) |
+| `images.yml` | push to `main` | buildx (native `ubuntu-24.04-arm` + `ubuntu-latest` runners, multi-arch manifest) + GHA cache → GHCR `qops-runtime`, `qops-tracker`, `qops-emulator` (tag `sha-<short>`) → Trivy → SBOM + cosign keyless (P12) → bot commit of tags into `deploy/envs/oci` (GITHUB_TOKEN commits do not retrigger CI) |
 | `e2e.yml` | nightly, manual, PR label | kind cluster + `ci` overlay → GHZ + short VQE on the emulator, duplicate-event and tracker-kill checks |
 
 Renovate opens dependency-update PRs (charts, images, Python packages).
@@ -465,42 +508,48 @@ Renovate opens dependency-update PRs (charts, images, Python packages).
 
 ## 14. Cluster topology, observability, security
 
-### Local cluster (k3d on Linux/WSL2 with an NVIDIA GPU, 32 GB+ RAM)
+### Cluster (k3s on OCI Always Free, provisioned by OpenTofu in `infra/oci/`)
 
-| Node | Labels / taints | Workloads |
-|---|---|---|
-| server-0 | control plane | k3s |
-| agent `system` | `qops.io/pool=system` | Argo CD, Vault, Argo, ESO, monitoring |
-| agent `cpu` | `qops.io/pool=cpu` | L1 pods, tracker, emulator |
-| agent `gpu` | `qops.io/pool=gpu`, taint `nvidia.com/gpu=present:NoSchedule` | L3 pods; device plugin with time-slicing ×4 |
+| Node | Shape | Labels | Workloads |
+|---|---|---|---|
+| `server` | VM.Standard.A1.Flex, 2 OCPU / 12 GB | `qops.io/pool=system` | k3s server, Argo CD, Vault, Argo, ESO, monitoring |
+| `agent` | VM.Standard.A1.Flex, 2 OCPU / 12 GB | `qops.io/pool=cpu` | L1/L3 pods, job-tracker, emulator |
 
-- **GPU image:** a custom k3s-CUDA image (`infra/local/k3s-cuda/`). Fallback is nvkind.
-- **UIs:** exposed through Traefik at `*.qops.localhost` (Argo CD, Argo Workflows, Vault, Grafana).
-- **Portability:** node pools are only labels and taints, so the cloud phase maps them onto real node pools without chart changes.
+- **Access:** the VMs have **no public inbound ports**. SSH and the k3s API are reachable only over **Tailscale**
+  (free personal plan). UIs (Argo CD, Argo Workflows, Vault, Grafana) are exposed by the Tailscale Kubernetes operator at
+  `*.ts.net` with HTTPS. Any of your computers needs only `tailscale`, `kubectl` and `uv` (`make kubeconfig`).
+- **k3s rather than OKE**, so the cluster stays portable and other nodes can join over the tailnet later.
+- **OpenTofu state:** OCI Object Storage (Always Free, S3-compatible backend) with OpenTofu state encryption. OCI API keys
+  and Tailscale auth keys are sensitive variables or env vars, never committed.
+- **Footprint:** 24 GB total. Prometheus retention is short, Loki uses filesystem storage, and emulator QEC sizes stay CPU-friendly.
+- **Portability:** node pools are only labels; a GPU node (paid, or a machine joined over Tailscale) could be added later
+  **with approval** without chart changes.
+- **CI/offline:** kind (amd64) with the `ci` overlay.
 
 ### Observability
 - **Stack:** kube-prometheus-stack, Loki + Alloy, and Argo Workflows custom metrics. The tracker exposes `/metrics`, and
   Grafana queries Supabase through the read-only role.
 - **Dashboards (as code):**
   - **Platform:** pod-seconds vs wall-clock per run. This is the **zero-idle KPI**.
-  - **QPU:** queue-wait histograms, jobs by status, Open Plan quota gauge.
+  - **Remote jobs:** QPU and GPU queue-wait histograms, jobs by status, IBM Open Plan and Kaggle weekly quota gauges.
   - **Science:** VQE energy vs exact, QAOA approximation ratio, logical error rate vs distance, mitigation gain.
   - **Cost:** paid spend must stay at 0.
 - **Alerts:**
-  - IBM quota ≥ 80%.
+  - IBM quota or Kaggle GPU quota ≥ 80%.
   - Iteration READY but not dispatched for more than 10 min.
   - Workflow failures.
   - Vault sealed.
   - Supabase unreachable or paused.
 
-### Security (hardened in P11)
+### Security (hardened in P12)
 - **Kyverno:**
   - Pod Security Standards "restricted".
   - Registry allowlist (`ghcr.io/michael-attias123/*` + pinned upstreams).
   - Required requests/limits.
   - cosign keyless `verifyImages`.
   - **Paid-provider gate.**
-- Default-deny NetworkPolicies: L3 egress only to Vault and Supabase; L1 egress to Vault, Supabase and QPU APIs.
+- Default-deny NetworkPolicies: L1 egress to Vault, Supabase and QPU APIs; L3 egress to Vault, Supabase and Kaggle.
+- OCI security lists allow no public inbound traffic; Tailscale ACLs restrict tailnet access to your devices.
 - Argo CD AppProjects scope what each app may deploy.
 - Vault raft snapshot CronJob, plus runbooks for Vault sealed, emulator down, and Supabase paused.
 
@@ -515,7 +564,9 @@ Renovate opens dependency-update PRs (charts, images, Python packages).
 | IBM Quantum Open Plan | 10 QPU-min / month | Pay-as-you-go plan |
 | IonQ | cloud simulator | QPU backends |
 | AWS Braket | local simulator | managed simulators, QPUs |
-| Cloud (P12, TBD) | e.g. OCI Always Free (OKE Basic, 4 OCPU / 24 GB Ampere A1) | managed control planes (EKS ≈ $73/month), any cloud GPU |
+| OCI Always Free | 2× A1.Flex (4 OCPU / 24 GB total), 200 GB block, object storage, KMS; card for signup only | upgrading to pay-as-you-go, non-free shapes, any cloud GPU |
+| Tailscale | free personal plan | — |
+| Kaggle | ~30 GPU-hours/week | — (quota guard stops at 80%) |
 | Vault, Argo CD/Workflows/Events, ESO, Kyverno, Prometheus, Grafana, Loki, Mitiq, PyMatching, Stim, CUDA-Q | OSS | — |
 
 ---
@@ -524,22 +575,23 @@ Renovate opens dependency-update PRs (charts, images, Python packages).
 
 | Risk | Phase | Mitigation |
 |---|---|---|
-| k3d GPU passthrough on WSL2 | P0 | spike first; fallback nvkind |
-| Vault dynamic roles through Supavisor (`role.projectref`) | P4 | spike; fallback Vault static rotated roles |
+| OCI A1 capacity unavailable in the home region | P2 | retry, other availability domain, or choose region at signup |
+| OCI reclaims idle Always Free VMs (7 days) | P2+ | a running cluster stays busy; paid upgrade only with approval |
+| Kaggle startup latency, quota, API/ToS changes | P9+ | remote GPU only for heavy stages; CPU fallback always available |
+| Vault dynamic roles through Supavisor (`role.projectref`) | P5 | spike; fallback Vault static rotated roles |
 | Qiskit 2.x compatibility of mthree / mitiq / qiskit-ionq / qiskit-braket-provider | P1 | pin matrix, compatibility tests |
-| CUDA image size on free runners | P8 | free-disk-space step, layer caching |
-| IBM queue times of hours | P6+ | expected (that's the point); tests use the emulator |
-| Supabase auto-pause after inactivity | P4+ | alert + runbook |
-| Cloud free-capacity limits (e.g. OCI A1 availability) | P12 | decided at phase start |
+| arm64 wheels for scientific packages | P1 | pin matrix tested on arm64 runners |
+| IBM queue times of hours | P7+ | expected (that's the point); tests use the emulator |
+| Supabase auto-pause after inactivity | P5+ | alert + runbook |
 
 ---
 
 ## 17. Changes from the original blueprint
 
-1. **Pull-based trigger.** The blueprint had Argo CD "trigger" workflows, which it doesn't do well, and a local cluster
-   can't receive GitHub webhooks. Experiments are now CRs synced by Argo CD and watched by Argo Events.
+1. **Pull-based trigger.** The blueprint had Argo CD "trigger" workflows, which it doesn't do well, and the cluster is
+   private (Tailscale-only), so it accepts no inbound webhooks. Experiments are now CRs synced by Argo CD and watched by Argo Events.
 2. **Tracker as a small Deployment, not a CronJob or Edge Function.** A CronJob would pay Python/Qiskit startup every
-   minute, and an Edge Function can't reach a local cluster. The tracker uses adaptive backoff and `FOR UPDATE SKIP LOCKED`,
+   minute, and an Edge Function can't reach a private (Tailscale-only) cluster. The tracker uses adaptive backoff and `FOR UPDATE SKIP LOCKED`,
    so it is multi-replica safe.
 3. **Transactional outbox + conditional transitions** give exactly-once processing even when webhooks are lost or duplicated.
 4. **Sampler everywhere**, with expectation values computed in L3. Data stays provider-neutral and our own mitigation runs on it.
@@ -548,6 +600,10 @@ Renovate opens dependency-update PRs (charts, images, Python packages).
 6. **Supabase behind interfaces.** Workers need only Postgres + S3, and CI uses in-cluster Postgres + MinIO.
 7. **Error correction made concrete:** mitigation (M3, ZNE, CDR) and QEC decoding (PyMatching, CUDA-Q QEC) as pluggable
    stages with a CPU fallback for every GPU path.
+11. **Always-on free cloud cluster instead of a laptop cluster**, because the work happens from several computers: k3s on
+    OCI Always Free with private Tailscale access.
+12. **GPU as a remote API provider (Kaggle)**, used exactly like the QPU: submit, exit, track, resume. There is no local
+    GPU, the cluster stays CPU-only and $0, and the remote job only ever receives signed URLs.
 8. **Multi-provider adapter** with capability flags, plus a free in-cluster emulator that models queues and failures.
 9. **GitOps extended** to Vault configuration (vault-config-operator) and DB schema (Argo CD PreSync migrations).
 10. **Qiskit 2.x** instead of 1.x, and **$0 guardrails** throughout.

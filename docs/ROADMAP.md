@@ -5,52 +5,53 @@ checked, with each check scripted as `make verify-pN`. The design behind each it
 
 **Ground rules for every phase**
 - **$0.** If a step would cost money, stop and ask first. Paid paths stay disabled by default.
-- **GitOps.** If it runs in the cluster, it's declared in Git. The only imperative steps are cluster creation and the Vault
-  init/unseal/seed scripts.
-- **No secrets in Git.** Secrets go through `make seed-secrets` → Vault. gitleaks runs in CI.
+- **GitOps.** If it runs in the cluster, it's declared in Git. The only imperative steps are `tofu apply` for the
+  cluster and the Vault init/seed scripts.
+- **No secrets in Git.** Secrets go through `make seed-secrets` → Vault, or as sensitive OpenTofu variables. gitleaks runs in CI.
+- **Work from any computer.** Each machine needs only `git`, `uv`, `tailscale`, `kubectl` (plus `tofu` for P2). Nothing
+  depends on one particular laptop.
 - Each phase ends with updated docs (ADRs, runbooks) for whatever it introduced.
 
 | # | Phase | Levels touched | Depends on | Status |
 |---|---|---|---|---|
 | P0 | Foundations | — | — | ☐ |
 | P1 | L0 contract + local runtime | L0, L1, L3 (in-process) | P0 | ☐ |
-| P2 | GitOps bootstrap | platform | P0 | ☐ |
-| P3 | Vault + ESO | platform | P2 | ☐ |
-| P4 | State layer (Supabase) | platform | P3 | ☐ |
-| P5 | Event-driven pipeline, one-shot (emulator) | L1, L2 | P1, P4 | ☐ |
-| P6 | Real QPU providers + cost guard | L2 | P5 | ☐ |
-| P7 | Iterative algorithms (VQE, QAOA) | L1, L2, L3 | P6 | ☐ |
-| P8 | L3 error mitigation + GPU | L3 | P7 | ☐ |
-| P9 | L3 QEC experiments + decoders | L3 | P8 | ☐ |
-| P10 | Observability | platform | P7 | ☐ |
-| P11 | Hardening & supply chain | platform | P10 | ☐ |
-| P12 | Cloud phase (provider TBD) | platform | P11 | ☐ |
+| P2 | Cloud cluster (OCI Always Free + Tailscale) | platform | P0 | ☐ |
+| P3 | GitOps bootstrap | platform | P2 | ☐ |
+| P4 | Vault + ESO | platform | P3 | ☐ |
+| P5 | State layer (Supabase) | platform | P4 | ☐ |
+| P6 | Event-driven pipeline, one-shot (emulator) | L1, L2 | P1, P5 | ☐ |
+| P7 | Real QPU providers + cost guard | L2 | P6 | ☐ |
+| P8 | Iterative algorithms (VQE, QAOA) | L1, L2, L3 | P7 | ☐ |
+| P9 | L3 error mitigation + remote GPU (Kaggle) | L3 | P8 | ☐ |
+| P10 | L3 QEC experiments + decoders | L3 | P9 | ☐ |
+| P11 | Observability | platform | P8 | ☐ |
+| P12 | Hardening & supply chain | platform | P11 | ☐ |
 
 ---
 
 ## P0 — Foundations
-**Goal:** a working repo, toolchain and local GPU-enabled cluster.
+**Goal:** a working repo and toolchain.
 
 Build
 - [ ] Monorepo skeleton matching [ARCHITECTURE §13](ARCHITECTURE.md#13-gitops-repository-layout-cicd)
 - [ ] uv workspace (`packages/*`), Python 3.12, ruff, mypy, pytest, pre-commit
-- [ ] `Makefile` with targets `cluster-up`, `cluster-down`, `lint`, `test`, `verify-p0`
-- [ ] `docs/adr/` with the first ADRs: monorepo, k3d, Supabase, Git-manifest trigger, Sampler-everywhere, $0 policy
-- [ ] Renovate config; `ci.yml` (lint + test + gitleaks)
-- [ ] `infra/local/k3d-config.yaml`: server + `system`/`cpu`/`gpu` agents with labels and taints
-- [ ] `infra/local/k3s-cuda/` image (NVIDIA container toolkit) and NVIDIA device plugin smoke manifest
+- [ ] `Makefile` with targets `lint`, `test`, `verify-p0`
+- [ ] `docs/adr/` with the first ADRs: monorepo, OCI + Tailscale, Supabase, Git-manifest trigger, Sampler-everywhere,
+      remote GPU via Kaggle, $0 policy
+- [ ] Renovate config; `ci.yml` (lint + test + gitleaks) on amd64 **and** arm64 runners
+- [ ] `infra/ci/kind-config.yaml` for later e2e tests
 
 Definition of Done
-- [ ] `make cluster-up` → 4 nodes with correct labels and taints
-- [ ] A pod on the `gpu` node runs `nvidia-smi` successfully
-- [ ] CI green on a PR
+- [ ] Fresh clone on any computer: `uv sync && make lint test` passes
+- [ ] CI green on a PR (both architectures)
 
-Spike: k3d GPU passthrough on WSL2 (fallback: nvkind). · Cost: $0.
+Cost: $0.
 
 ---
 
 ## P1 — L0 contract + local runtime (no Kubernetes)
-**Goal:** researchers can write pure Qiskit and run the full loop in-process.
+**Goal:** researchers can write pure Qiskit and run the full loop in-process on any laptop.
 
 Build
 - [ ] `qops-core`: contract loader (`sampling`, `variational`, `qec-memory`), models, state serde (`state.json` + `schema_version`), QPY helpers
@@ -58,7 +59,7 @@ Build
 - [ ] `qops-stages`: SPSA ask/tell with JSON state; measurement grouping + expectation values from counts
 - [ ] `qops-cli`: `qops run --local <path>`, `qops new algorithm <name> --kind …`
 - [ ] Algorithms: `ghz_benchmark`, `vqe_h2`
-- [ ] Version pin matrix for Qiskit 2.x + qiskit-aer + mthree + mitiq + qiskit-ionq + qiskit-braket-provider
+- [ ] Version pin matrix for Qiskit 2.x + qiskit-aer + mthree + mitiq + qiskit-ionq + qiskit-braket-provider, tested on amd64 **and arm64**
 
 Definition of Done
 - [ ] GHZ run reports fidelity
@@ -70,79 +71,106 @@ Cost: $0.
 
 ---
 
-## P2 — GitOps bootstrap
-**Goal:** one command rebuilds the whole platform from Git.
+## P2 — Cloud cluster (OCI Always Free + Tailscale)
+**Goal:** an always-on, private, $0 cluster reachable from every computer.
+
+Prerequisites (one-time, by you):
+- Oracle Cloud account (a card is used for identity verification only; nothing is charged).
+- Tailscale account (free personal plan).
+
+Build
+- [ ] `infra/oci/` (OpenTofu): VCN + subnet, security lists with **no public inbound**, 2× `VM.Standard.A1.Flex` (2 OCPU / 12 GB each)
+- [ ] cloud-init: Tailscale join (auth key as a sensitive var), k3s server/agent bound to the tailnet IP, node labels `qops.io/pool`
+- [ ] OCI KMS key (free) for later Vault auto-unseal
+- [ ] Remote state in OCI Object Storage (S3 backend) + OpenTofu state encryption
+- [ ] `make kubeconfig` (fetch kubeconfig over Tailscale), `make ssh-server`
+- [ ] Runbook: A1 capacity errors, idle-reclaim policy, rebuilding the cluster from scratch
+
+Definition of Done
+- [ ] From a second computer: `tailscale up && make kubeconfig && kubectl get nodes` → 2 Ready arm64 nodes
+- [ ] The VMs' public IPs answer on no port (checked from outside the tailnet)
+- [ ] `tofu plan` shows no drift; the OCI cost report shows $0
+
+Risks: A1 capacity (retry or try another availability domain), idle reclaim (a running cluster stays busy). · Cost: $0.
+
+---
+
+## P3 — GitOps bootstrap
+**Goal:** one command installs the whole platform from Git.
 
 Build
 - [ ] `deploy/bootstrap/` (Argo CD Helm values + root Application) and `deploy/apps/` app-of-apps chart
 - [ ] Sync waves and namespaces; Argo CD manages its own release
-- [ ] `deploy/envs/local/`; Traefik ingress for `argocd.qops.localhost`
-- [ ] `images.yml`: buildx → GHCR → bot commits tags into `deploy/envs/local`
+- [ ] Tailscale Kubernetes operator; Argo CD UI at `argocd.<tailnet>.ts.net`
+- [ ] `deploy/envs/oci/` and `deploy/envs/ci/`
+- [ ] `images.yml`: multi-arch build (native arm64 + amd64 runners) → GHCR → bot commits tags into `deploy/envs/oci`
 - [ ] `infra/github/` (OpenTofu): branch protection, required checks
 - [ ] `make bootstrap`
 
 Definition of Done
-- [ ] `make cluster-down && make cluster-up && make bootstrap` → all apps Synced/Healthy with no manual kubectl
+- [ ] On a freshly rebuilt cluster, `make bootstrap` → all apps Synced/Healthy with no manual kubectl
 - [ ] A Git change to a value shows up in the cluster
 - [ ] An image built on `main` gets its tag bumped and deployed automatically
-
-Cost: $0 (public repo → free Actions and GHCR).
-
----
-
-## P3 — Vault + External Secrets
-**Goal:** every credential comes from Vault; Vault config is GitOps.
-
-Build
-- [ ] Vault (Raft standalone, injector, audit device) via Argo CD
-- [ ] `scripts/vault-init.sh`, `make unseal`, `make seed-secrets` (keys kept in `~/.qops/`, never in the repo)
-- [ ] vault-config-operator; policies, k8s auth roles, KV v2 mount declared as CRs
-- [ ] ESO + ClusterSecretStore + ExternalSecrets for provider tokens
-- [ ] ServiceAccounts `qops-runtime-cpu`, `qops-runtime-gpu`, `qops-tracker` with distinct policies
-
-Definition of Done
-- [ ] Rotating the IBM token in Vault updates the K8s Secret within the refresh interval
-- [ ] `qops-runtime-gpu` is **denied** when reading `kv/qops/providers/*`
-- [ ] Vault audit log shows every access; gitleaks is clean
+- [ ] The Argo CD UI opens from any tailnet computer and from nowhere else
 
 Cost: $0.
 
 ---
 
-## P4 — State layer (Supabase)
+## P4 — Vault + External Secrets
+**Goal:** every credential comes from Vault; Vault config is GitOps; no laptop needed after a restart.
+
+Build
+- [ ] Vault (Raft standalone, injector, audit device) with **OCI KMS auto-unseal**
+- [ ] `scripts/vault-init.sh`, `make seed-secrets`; recovery keys stored outside the repo; `make unseal` fallback
+- [ ] vault-config-operator; policies, k8s auth roles, KV v2 mount declared as CRs
+- [ ] ESO + ClusterSecretStore + ExternalSecrets for provider tokens (IBM, IonQ, Kaggle)
+- [ ] ServiceAccounts `qops-l1`, `qops-l3`, `job-tracker` with distinct policies
+
+Definition of Done
+- [ ] Rebooting the server VM → Vault unseals itself
+- [ ] Rotating the IBM token in Vault updates the K8s Secret within the refresh interval
+- [ ] `qops-l3` is **denied** when reading QPU tokens; `qops-l1` is denied when reading the Kaggle key
+- [ ] Vault audit log shows every access; gitleaks is clean
+
+Spike: OCI KMS auto-unseal (fallback `make unseal` over Tailscale). · Cost: $0.
+
+---
+
+## P5 — State layer (Supabase)
 **Goal:** durable state with short-lived DB credentials, plus a free offline twin for CI.
 
 Build
 - [ ] `infra/supabase/` (OpenTofu, state encryption): free project + settings
-- [ ] `db/migrations/` (dbmate): `runs`, `iterations`, `qpu_jobs`, `outbox`, `qpu_usage`, `backend_cache`; RLS on, no policies
-- [ ] Storage bucket `qops-artifacts` and retention CronJob
+- [ ] `db/migrations/` (dbmate): `runs`, `iterations`, `remote_jobs`, `outbox`, `qpu_usage`, `gpu_usage`, `backend_cache`; RLS on, no policies
+- [ ] Storage bucket `qops-artifacts`, signed-URL helpers, retention CronJob
 - [ ] Argo CD PreSync migration Job (`qops-migrator` creds)
 - [ ] Vault DB secrets engine via the Supavisor pooler: `qops-worker`, `qops-tracker`, `qops-migrator`, `qops-grafana-ro`
 - [ ] `qops-core.store` (Postgres + S3) with conditional state-transition helpers
-- [ ] `deploy/envs/ci/` overlay: in-cluster Postgres + MinIO
+- [ ] `ci` overlay: in-cluster Postgres + MinIO
 
 Definition of Done
 - [ ] A pod receives 1h dynamic creds; the role disappears after the TTL
 - [ ] Hydrate/dehydrate round-trip tests pass against Supabase **and** the CI overlay
 - [ ] Concurrent claim test: exactly one of N workers wins a transition
 
-Spike: dynamic roles through Supavisor (`role.projectref` usernames); fallback Vault static rotated roles. · Cost: $0 (Supabase Free).
+Spike: dynamic roles through Supavisor (`role.projectref`); fallback Vault static rotated roles. · Cost: $0.
 
 ---
 
-## P5 — Event-driven pipeline, one-shot (emulator)
+## P6 — Event-driven pipeline, one-shot (emulator)
 **Goal:** Git commit → QPU job → results, with zero pods while waiting.
 
 Build
 - [ ] `qops-emulator`: async REST fake QPU with Aer, fake-backend noise, queue-delay distribution and failure injection
-- [ ] `images/runtime-cpu`, `images/tracker`, `images/emulator`
+- [ ] Images `qops-runtime`, `qops-tracker`, `qops-emulator` (multi-arch)
 - [ ] Argo Workflows + Argo Events (NATS JetStream EventBus) via Argo CD
 - [ ] `QuantumExperiment` CRD (status subresource, printer columns)
 - [ ] EventSources: resource (CRD) + webhook (tracker); Sensors: start, job-ready, job-failed, cancel
 - [ ] WorkflowTemplates: `qops-run`, `qops-iteration`, `handle-failure`, `cancel-run` (git input artifact, Vault Agent init-only)
-- [ ] `qops-tracker`: `FOR UPDATE SKIP LOCKED` polling, adaptive backoff, result fetch → Storage, outbox dispatcher, `/metrics`
-- [ ] CLI: `qops run --cluster`, `qops status`, `qops logs`
-- [ ] `experiments/ghz-emulator.yaml`
+- [ ] `job-tracker`: `FOR UPDATE SKIP LOCKED` polling, adaptive backoff, result fetch → Storage, outbox dispatcher, `/metrics`
+- [ ] CLI: `qops run --cluster`, `qops status`, `qops logs` (work from any tailnet computer)
+- [ ] `experiments/ghz-emulator.yaml`; `e2e.yml` on kind
 
 Definition of Done
 - [ ] Committing `experiments/ghz-emulator.yaml` → run `SUCCEEDED`, CR status updated
@@ -154,7 +182,7 @@ Cost: $0.
 
 ---
 
-## P6 — Real QPU providers + cost guard
+## P7 — Real QPU providers + cost guard
 **Goal:** the same pipeline on real hardware, with spend provably $0.
 
 Build
@@ -170,11 +198,11 @@ Definition of Done
 - [ ] A paid-device experiment is rejected with a clear reason
 - [ ] Usage is recorded and visible per month
 
-Cost: $0 (IBM Open Plan minutes, IonQ simulator).
+Cost: $0.
 
 ---
 
-## P7 — Iterative algorithms (VQE, QAOA)
+## P8 — Iterative algorithms (VQE, QAOA)
 **Goal:** the multi-round CPU → QPU → L3 → CPU loop.
 
 Build
@@ -193,99 +221,90 @@ Cost: $0.
 
 ---
 
-## P8 — L3: error mitigation + GPU
-**Goal:** pluggable mitigation with a real GPU path and a CPU fallback.
+## P9 — L3: error mitigation + remote GPU (Kaggle)
+**Goal:** pluggable mitigation, and GPU compute used through an API exactly like the QPU.
+
+Prerequisite (one-time, by you): a Kaggle account with phone verification (needed for GPU access) and an API token.
 
 Build
 - [ ] Stage plugin system (`prepare()` in L1, `apply()` in L3; entry points)
-- [ ] `m3`, `zne` (Mitiq folding + extrapolation), `cdr` (Aer-GPU training-set simulation)
-- [ ] `images/runtime-gpu` (CUDA, qiskit-aer-gpu, cupy), with a free-disk-space step in CI
-- [ ] Device plugin time-slicing ×4; `accelerator: auto|gpu|cpu` scheduling
+- [ ] `m3`, `zne` (Mitiq folding + extrapolation), `cdr`
+- [ ] Remote-GPU adapter `qops_providers.gpu` (same interface as the QPU adapter) with `kaggle` and `local-cpu` implementations
+- [ ] `kaggle/` kernel template: installs `qops-stages` at the pinned SHA, reads input and writes output only through signed URLs
+- [ ] job-tracker generalized to `remote_jobs.kind = gpu`; `gpu-job-ready` / `gpu-job-failed` events; `GPU_*` iteration states
+- [ ] `gpu_usage` weekly quota guard (refuse at ≥ 80%, `auto` falls back to CPU); `accelerator: cpu | remote-gpu | auto` routing with size thresholds
+- [ ] Kaggle API key in Vault, readable only by `qops-l3` and `job-tracker`
 
 Definition of Done
 - [ ] On the noisy emulator, ZNE+M3 reduces VQE energy error vs unmitigated
-- [ ] The same run with `cpu` and with `gpu` gives matching results within tolerance
-- [ ] GPU pods hold no QPU credentials (verified)
+- [ ] The same CDR run via `cpu` and `remote-gpu` matches within tolerance
+- [ ] **Zero pods during the Kaggle GPU wait**; the remote job holds no DB, Vault or QPU credentials
+- [ ] Exceeding the GPU quota guard falls back to CPU automatically
 
-Cost: $0 (local GPU).
+Cost: $0 (Kaggle free quota, enforced by the guard).
 
 ---
 
-## P9 — L3: QEC experiments + decoders
-**Goal:** error-correction experiments decoded on CPU and GPU.
+## P10 — L3: QEC experiments + decoders
+**Goal:** error-correction experiments decoded on CPU and on the remote GPU.
 
 Build
 - [ ] `qec_repetition` (d = 3/5/7) and `qec_surface` (rotated d = 3, emulator)
 - [ ] Stim circuit + detector error model from the same spec, with noise from backend calibration
-- [ ] Decoders: `pymatching` (CPU), `cudaq-qec` (GPU), `ldpc` (CPU fallback)
-- [ ] Batch decoding benchmark (shots/s CPU vs GPU)
+- [ ] Decoders: `pymatching` (CPU, default), `ldpc` BP+OSD (CPU), `cudaq-qec` (remote GPU via Kaggle)
+- [ ] Batch decoding benchmark (shots/s cluster CPU vs Kaggle GPU, including startup overhead)
 
 Definition of Done
 - [ ] Logical error rate decreases with distance on the emulator (below threshold)
-- [ ] GPU and CPU decoders agree within statistical error; throughput benchmark published
+- [ ] GPU and CPU decoders agree within statistical error; benchmark published in docs
 - [ ] One repetition-code run on real IBM hardware
 
 Cost: $0.
 
 ---
 
-## P10 — Observability
+## P11 — Observability
 **Goal:** see platform health, queue behavior, science results and cost in one place.
 
 Build
-- [ ] kube-prometheus-stack, Loki + Alloy via Argo CD
-- [ ] Tracker metrics, Argo Workflows custom metrics, Grafana → Supabase (read-only role)
-- [ ] Dashboards as code: Platform (zero-idle KPI), QPU, Science, Cost
-- [ ] Alerts: quota ≥ 80%, READY-not-dispatched > 10 min, workflow failures, Vault sealed, Supabase unreachable
+- [ ] kube-prometheus-stack (short retention), Loki (filesystem) + Alloy via Argo CD, sized for the 24 GB cluster
+- [ ] Tracker metrics, Argo Workflows custom metrics, Grafana → Supabase (read-only role); Grafana via Tailscale
+- [ ] Dashboards as code: Platform (zero-idle KPI), Remote jobs (QPU + GPU waits, IBM and Kaggle quotas), Science, Cost
+- [ ] Alerts: IBM/Kaggle quota ≥ 80%, READY-not-dispatched > 10 min, workflow failures, Vault sealed, Supabase unreachable, node NotReady
 
 Definition of Done
-- [ ] A full VQE run is visible end-to-end (convergence, queue waits, zero-idle KPI, quota)
+- [ ] A full VQE run is visible end-to-end (convergence, queue waits, zero-idle KPI, quotas)
 - [ ] A forced test fires an alert
 
 Cost: $0.
 
 ---
 
-## P11 — Hardening & supply chain
+## P12 — Hardening & supply chain
 **Goal:** production-grade guardrails.
 
 Build
 - [ ] Kyverno: PSS restricted, registry allowlist, required limits, cosign keyless `verifyImages`, **paid-provider gate**
-- [ ] Default-deny NetworkPolicies (L3 egress only to Vault and Supabase)
+- [ ] Default-deny NetworkPolicies (L1 → Vault/Supabase/QPU APIs; L3 → Vault/Supabase/Kaggle)
+- [ ] Review of OCI security lists and Tailscale ACLs
 - [ ] Argo CD AppProjects / RBAC
 - [ ] CI: SBOM (syft) + cosign keyless signing + Trivy gate
-- [ ] Vault raft snapshot CronJob; runbooks for Vault sealed / emulator down / Supabase paused
+- [ ] Vault raft snapshot CronJob → OCI Object Storage; runbooks: Vault sealed, emulator down, Supabase paused, VM reclaimed, Kaggle quota exhausted
 
 Definition of Done
 - [ ] Unsigned images and paid experiments are both rejected at admission
-- [ ] Every chaos scenario recovers by following its runbook
+- [ ] Every chaos scenario recovers by following its runbook, including a full cluster rebuild from Git + Vault snapshot
 
 Cost: $0.
 
 ---
 
-## P12 — Cloud phase (provider decided at phase start)
-**Goal:** the same Git repo drives a second, cloud-hosted cluster.
-
-Before starting, choose the target together. Options: Oracle Always Free (OKE Basic + Ampere A1 arm64, no GPU, so L3
-falls back to CPU), stay local only, or a paid/trial option **only with explicit approval**.
-
-Build
-- [ ] `infra/<cloud>/` (OpenTofu) cluster + node pools mapped to the `qops.io/pool` labels
-- [ ] `deploy/envs/<cloud>/` overlay; KMS auto-unseal for Vault
-- [ ] Multi-arch images if needed (free `ubuntu-24.04-arm` runners)
-- [ ] GPU node pool behind `enable_gpu_pool = false`
-
-Definition of Done
-- [ ] Both clusters sync from the same repo
-- [ ] GHZ + VQE succeed in the cloud env
-
-Cost: $0 unless you approve otherwise.
-
----
+## Later, only with your approval
+- A dedicated GPU node (paid cloud GPU, or a GPU machine joined over Tailscale). The scheduling labels are already in place.
+- Paid QPU devices (IBM pay-as-you-go, IonQ / Braket hardware).
 
 ## Final acceptance
-- [ ] Four committed experiments (GHZ on IBM, VQE on emulator with ZNE, QAOA on IonQ simulator, QEC repetition on emulator)
-      all reach `SUCCEEDED` with no manual steps
-- [ ] The zero-idle KPI shows no compute pods during QPU waits
+- [ ] Four committed experiments (GHZ on IBM, VQE on emulator with ZNE, QAOA on IonQ simulator, QEC repetition on
+      emulator with Kaggle GPU decoding) all reach `SUCCEEDED` with no manual steps
+- [ ] The zero-idle KPI shows no compute pods during QPU or GPU waits
 - [ ] Paid spend = **$0**

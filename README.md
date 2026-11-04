@@ -9,9 +9,9 @@ idle while jobs wait in cloud quantum queues.
 | **L0 · Code** | this repo (`algorithms/`) | pure Qiskit: no decorators, no infrastructure imports |
 | **L1 · CPU** | Kubernetes CPU pool | build circuits, prepare mitigation/QEC, transpile, cost-check, submit, exit |
 | **L2 · QPU** | quantum cloud API | IBM Quantum, IonQ simulator, Braket local simulator, in-cluster emulator |
-| **L3 · GPU/CPU** | Kubernetes GPU pool (CPU fallback) | error mitigation (M3, ZNE, CDR), QEC decoding (PyMatching, CUDA-Q QEC), optimizer step |
+| **L3 · GPU/CPU** | Kubernetes CPU pool + free remote GPU via API (Kaggle) | error mitigation (M3, ZNE, CDR), QEC decoding (PyMatching, CUDA-Q QEC), optimizer step |
 
-**Stack:** Kubernetes (k3d) · Argo CD · Argo Workflows · Argo Events · HashiCorp Vault · External Secrets ·
+**Stack:** k3s on Oracle Cloud Always Free (reached over Tailscale) · Kaggle GPU API · Argo CD · Argo Workflows · Argo Events · HashiCorp Vault · External Secrets ·
 Supabase (Postgres + Storage) · Qiskit 2.x · Prometheus/Grafana/Loki · Kyverno · OpenTofu · GitHub Actions + GHCR
 
 **Principles:** zero-idle compute · state hydration between ephemeral pods · event-driven and pull-based ·
