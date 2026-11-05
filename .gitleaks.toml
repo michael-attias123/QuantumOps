@@ -1,0 +1,11 @@
+title = "QuantumOps gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Copied reference material and lockfiles carry no secrets"
+paths = [
+  '''docs/reference/''',
+  '''uv\.lock''',
+]

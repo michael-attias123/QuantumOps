@@ -14,7 +14,7 @@ checked, with each check scripted as `make verify-pN`. The design behind each it
 
 | # | Phase | Levels touched | Depends on | Status |
 |---|---|---|---|---|
-| P0 | Foundations | — | — | ☐ |
+| P0 | Foundations | — | — | ✅ |
 | P1 | L0 contract + local runtime | L0, L1, L3 (in-process) | P0 | ☐ |
 | P2 | Cloud cluster (OCI Always Free + Tailscale) | platform | P0 | ☐ |
 | P3 | GitOps bootstrap | platform | P2 | ☐ |
@@ -34,17 +34,17 @@ checked, with each check scripted as `make verify-pN`. The design behind each it
 **Goal:** a working repo and toolchain.
 
 Build
-- [ ] Monorepo skeleton matching [ARCHITECTURE §13](ARCHITECTURE.md#13-gitops-repository-layout-cicd)
-- [ ] uv workspace (`packages/*`), Python 3.12, ruff, mypy, pytest, pre-commit
-- [ ] `Makefile` with targets `lint`, `test`, `verify-p0`
-- [ ] `docs/adr/` with the first ADRs: monorepo, OCI + Tailscale, Supabase, Git-manifest trigger, Sampler-everywhere,
+- [x] Monorepo skeleton matching [ARCHITECTURE §13](ARCHITECTURE.md#13-gitops-repository-layout-cicd)
+- [x] uv workspace (`packages/*`), Python 3.12, ruff, mypy, pytest, pre-commit
+- [x] `Makefile` with targets `lint`, `test`, `verify-p0`
+- [x] `docs/adr/` with the first ADRs: monorepo, OCI + Tailscale, Supabase, Git-manifest trigger, Sampler-everywhere,
       remote GPU via Kaggle, $0 policy
-- [ ] Renovate config; `ci.yml` (lint + test + gitleaks) on amd64 **and** arm64 runners
-- [ ] `infra/ci/kind-config.yaml` for later e2e tests
+- [x] Renovate config; `ci.yml` (lint + test + gitleaks) on amd64 **and** arm64 runners
+- [x] `infra/ci/kind-config.yaml` for later e2e tests
 
 Definition of Done
-- [ ] Fresh clone on any computer: `uv sync && make lint test` passes
-- [ ] CI green on a PR (both architectures)
+- [x] Fresh clone on any computer: `uv sync && make lint test` passes
+- [x] CI green on a PR (both architectures)
 
 Cost: $0.
 

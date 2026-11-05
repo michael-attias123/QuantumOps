@@ -1,0 +1,73 @@
+# QuantumOps uv workspace root. This project is not a package itself; it only
+# ties the workspace members together and holds shared tool configuration.
+[project]
+name = "quantumops"
+version = "0.0.1"
+description = "GitOps-driven Kubernetes platform for hybrid quantum-classical workloads"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "qops-core",
+    "qops-providers",
+    "qops-stages",
+    "qops-runtime",
+    "qops-tracker",
+    "qops-emulator",
+    "qops-cli",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.13",
+    "pre-commit>=4.0",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.8",
+    "yamllint>=1.35",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+qops-core = { workspace = true }
+qops-providers = { workspace = true }
+qops-stages = { workspace = true }
+qops-runtime = { workspace = true }
+qops-tracker = { workspace = true }
+qops-emulator = { workspace = true }
+qops-cli = { workspace = true }
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["*.md"]  # code blocks in docs are design sketches, not source
+
+[tool.ruff.lint]
+select = [
+    "E", "W",  # pycodestyle
+    "F",       # pyflakes
+    "I",       # isort
+    "B",       # bugbear
+    "UP",      # pyupgrade
+    "SIM",     # simplify
+    "RUF",     # ruff-specific
+    "PT",      # pytest style
+    "TID",     # tidy imports
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["qops_*"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+files = ["packages/*/src", "tests"]
+
+[tool.pytest.ini_options]
+addopts = ["--import-mode=importlib", "-ra", "--strict-markers"]
+testpaths = ["tests", "packages"]
