@@ -3,7 +3,7 @@ name: ci
 on:
   pull_request:
   push:
-    branches: [main, "claude/**"]
+    branches: [main, "phase/**", "claude/**"]
   workflow_dispatch:
 
 permissions:

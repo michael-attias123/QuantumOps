@@ -8,6 +8,8 @@ checked, with each check scripted as `make verify-pN`. The design behind each it
 - **GitOps.** If it runs in the cluster, it's declared in Git. The only imperative steps are `tofu apply` for the
   cluster and the Vault init/seed scripts.
 - **No secrets in Git.** Secrets go through `make seed-secrets` → Vault, or as sensitive OpenTofu variables. gitleaks runs in CI.
+- **One branch per phase:** `phase/pN-<slug>`, branched from the previous phase's branch (or from `main` once that
+  phase is merged). One pull request per phase into `main`.
 - **Work from any computer.** Each machine needs only `git`, `uv`, `tailscale`, `kubectl` (plus `tofu` for P2). Nothing
   depends on one particular laptop.
 - Each phase ends with updated docs (ADRs, runbooks) for whatever it introduced, **and a phase overview in
@@ -83,9 +85,8 @@ Cost: $0.
 ## P2 — Cloud cluster (OCI Always Free + Tailscale)
 **Goal:** an always-on, private, $0 cluster reachable from every computer.
 
-Prerequisites (one-time, by you):
-- Oracle Cloud account (a card is used for identity verification only; nothing is charged).
-- Tailscale account (free personal plan).
+Prerequisites (one-time, by you): see **[Before P2](phases/P2-prerequisites.md)**: Oracle Cloud account (card for
+identity verification only, no charge), API key, state bucket, budget alarm; Tailscale account, tags, HTTPS.
 
 Build
 - [ ] `infra/oci/` (OpenTofu): VCN + subnet, security lists with **no public inbound**, 2× `VM.Standard.A1.Flex` (2 OCPU / 12 GB each)
