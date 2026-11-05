@@ -1,4 +1,4 @@
-"""L0 researcher contract: load a pure-Qiskit algorithm from ``algorithms/<name>/``.
+"""L0 researcher contract: load a pure-Qiskit algorithm from ``research/algorithms/<name>/``.
 
 An algorithm directory contains:
 

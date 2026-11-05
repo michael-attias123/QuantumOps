@@ -71,7 +71,7 @@ def build_parser() -> argparse.ArgumentParser:
     algo = new_kinds.add_parser("algorithm", help="scaffold a pure-Qiskit algorithm")
     algo.add_argument("name")
     algo.add_argument("--kind", choices=["sampling", "variational"], required=True)
-    algo.add_argument("--dir", type=Path, default=Path("algorithms"))
+    algo.add_argument("--dir", type=Path, default=Path("research/algorithms"))
     return parser
 
 

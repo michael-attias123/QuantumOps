@@ -10,7 +10,7 @@ from qops_core.state import SCHEMA_VERSION, RunState, StateError, load_state, sa
 def make_state() -> RunState:
     return RunState(
         kind=ExperimentKind.VARIATIONAL,
-        algorithm="algorithms/vqe_h2",
+        algorithm="research/algorithms/vqe_h2",
         config={"reps": 2},
         provider="aer",
         backend="exact",

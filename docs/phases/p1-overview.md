@@ -13,7 +13,7 @@ with no cluster. This fixes the contract between researcher code and the platfor
 An algorithm is a folder with two files and nothing platform-specific:
 
 ```
-algorithms/vqe_h2/
+research/algorithms/vqe_h2/
 ├── algorithm.py     # class Algorithm(config): pure Qiskit, no qops_* imports
 └── algorithm.yaml   # kind: variational, default config
 ```
@@ -27,7 +27,7 @@ The `kind` decides which methods the class must have:
 | `qec-memory` | `code()` | — (runs from P10) |
 
 The loader checks this up front and gives a clear error ("kind 'variational' requires method(s): ansatz, …").
-A CI test keeps `algorithms/` free of platform imports.
+A CI test keeps `research/algorithms/` free of platform imports.
 
 ### 2. Two working algorithms
 | Algorithm | Result (local, noiseless) |
@@ -53,15 +53,15 @@ happens in a different pod.
 ### 5. Version pin matrix
 Qiskit **2.6.1** resolves together with everything later phases need: mthree 3.0, mitiq 1.1, qiskit-ibm-runtime 0.51,
 qiskit-ionq 1.1 and qiskit-braket-provider 0.27. All of them have **arm64** wheels for the Oracle cluster. They're
-locked as a `compat` group and tested by a new CI job on both architectures. Details: [compat-matrix.md](../compat-matrix.md).
+locked as a `compat` group and tested by a new CI job on both architectures. Details: [compat-matrix.md](../reference/compat-matrix.md).
 
 ## How to use it
 ```bash
-uv run qops run --local algorithms/ghz_benchmark
-uv run qops run --local algorithms/vqe_h2                      # ~0.7 s
-uv run qops run --local algorithms/vqe_h2 --shots 4000         # shot-based instead of exact
-uv run qops run --local algorithms/ghz_benchmark --set num_qubits=5
-uv run qops run --local algorithms/vqe_h2 --max-steps 20       # stop early ...
+uv run qops run --local research/algorithms/ghz_benchmark
+uv run qops run --local research/algorithms/vqe_h2                      # ~0.7 s
+uv run qops run --local research/algorithms/vqe_h2 --shots 4000         # shot-based instead of exact
+uv run qops run --local research/algorithms/ghz_benchmark --set num_qubits=5
+uv run qops run --local research/algorithms/vqe_h2 --max-steps 20       # stop early ...
 uv run qops run --resume .qops/runs/vqe_h2/state.json          # ... resume, same trajectory
 uv run qops new algorithm my_algo --kind variational           # scaffold a valid algorithm
 make verify-p1                                                 # all P1 checks
@@ -98,6 +98,6 @@ Tests: 48 pass (plus 5 compat tests that run in the pin-matrix job). Lint: ruff,
 
 ## Next: P2 — Cloud cluster
 OpenTofu builds the free Oracle Cloud k3s cluster (2 ARM VMs, no public ports), reachable from any computer over Tailscale.
-**Before P2:** follow [P2-prerequisites.md](P2-prerequisites.md) and send the non-secret values it lists.
+**Before P2:** follow [p2-prerequisites.md](p2-prerequisites.md) and send the non-secret values it lists.
 
-Algorithm explanations: [algorithms/README.md](../../algorithms/README.md).
+Algorithm explanations: [research/algorithms/README.md](../../research/algorithms/README.md).

@@ -9,8 +9,8 @@ from qops_core.state import load_state
 from qops_runtime import LocalRunOptions, run_local
 
 REPO = Path(__file__).resolve().parents[3]
-GHZ = REPO / "algorithms" / "ghz_benchmark"
-VQE = REPO / "algorithms" / "vqe_h2"
+GHZ = REPO / "research" / "algorithms" / "ghz_benchmark"
+VQE = REPO / "research" / "algorithms" / "vqe_h2"
 CHEMICAL_ACCURACY = 1.6e-3  # Ha
 
 

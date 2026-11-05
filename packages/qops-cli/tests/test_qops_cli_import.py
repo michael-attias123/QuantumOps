@@ -30,7 +30,7 @@ def test_run_local_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> N
         [
             "run",
             "--local",
-            str(REPO / "algorithms" / "ghz_benchmark"),
+            str(REPO / "research" / "algorithms" / "ghz_benchmark"),
             "--set",
             "num_qubits=4",
             "--state-dir",
@@ -46,7 +46,7 @@ def test_run_local_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> N
 
 
 def test_run_and_resume_variational(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    vqe = str(REPO / "algorithms" / "vqe_h2")
+    vqe = str(REPO / "research" / "algorithms" / "vqe_h2")
     args = [
         "run",
         "--local",
