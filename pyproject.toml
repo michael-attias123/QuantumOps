@@ -17,12 +17,20 @@ dependencies = [
 ]
 
 [dependency-groups]
+compat = [
+    "mitiq>=1.0",
+    "mthree>=3.0",
+    "qiskit-braket-provider>=0.27",
+    "qiskit-ibm-runtime>=0.40",
+    "qiskit-ionq>=1.0",
+]
 dev = [
     "mypy>=1.13",
     "pre-commit>=4.0",
     "pytest>=8.3",
     "pytest-cov>=6.0",
     "ruff>=0.8",
+    "types-pyyaml>=6.0.12.20261103",
     "yamllint>=1.35",
 ]
 
@@ -58,6 +66,7 @@ select = [
     "PT",      # pytest style
     "TID",     # tidy imports
 ]
+ignore = ["E501"]  # line length is owned by `ruff format`
 
 [tool.ruff.lint.isort]
 known-first-party = ["qops_*"]
@@ -67,6 +76,12 @@ python_version = "3.12"
 strict = true
 warn_unreachable = true
 files = ["packages/*/src", "tests"]
+
+[[tool.mypy.overrides]]
+# Qiskit and friends ship no type information (no py.typed marker).
+module = ["qiskit", "qiskit.*", "qiskit_aer", "qiskit_aer.*", "mthree", "mitiq", "mitiq.*",
+          "qiskit_ibm_runtime", "qiskit_ionq", "qiskit_braket_provider"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 addopts = ["--import-mode=importlib", "-ra", "--strict-markers"]

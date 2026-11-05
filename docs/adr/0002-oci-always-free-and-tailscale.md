@@ -1,6 +1,6 @@
 # ADR 0002 — Always-on k3s on OCI Always Free, accessed via Tailscale
 
-- **Status:** Accepted
+- **Status:** Accepted; sizing amended by [ADR 0008](0008-single-node-a1-cluster.md)
 - **Date:** 2026-11-04
 
 ## Context

@@ -16,6 +16,7 @@ uv run pre-commit install
 | `make lint` | ruff check, ruff format check, mypy (strict), yamllint |
 | `make fmt` | auto-fix and format |
 | `make test` | pytest (all packages + architecture guards) |
+| `make compat` | version pin matrix (installs the `compat` group) |
 | `make verify-pN` | Definition-of-Done checks for phase N |
 
 ## Rules
@@ -26,6 +27,9 @@ uv run pre-commit install
 - **Dependencies:** add them with `uv add --package <pkg> <dep>` and commit `uv.lock`.
 
 ## Branches & commits
-- Work on a feature branch and open a PR to `main`. CI must be green (amd64 + arm64 + secret scan).
+- **One branch per phase:** `phase/pN-<slug>` (e.g. `phase/p2-cloud-cluster`), branched from the previous phase's branch,
+  or from `main` once that phase is merged. One PR per phase into `main`. CI must be green (amd64 + arm64, pin matrix,
+  secret scan).
+- Smaller changes inside a phase go on short-lived branches off the phase branch.
 - Commit messages: `<area>: <imperative summary>` (e.g. `providers: add IBM SamplerV2 adapter`).
 - Significant decisions get an ADR in `docs/adr/`.

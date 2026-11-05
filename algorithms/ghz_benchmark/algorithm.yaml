@@ -1,0 +1,5 @@
+name: ghz_benchmark
+kind: sampling
+description: Prepare an n-qubit GHZ state and estimate its fidelity from Z- and X-basis measurements.
+config:
+  num_qubits: 3

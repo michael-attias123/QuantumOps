@@ -3,7 +3,7 @@ name: ci
 on:
   pull_request:
   push:
-    branches: [main, "claude/**"]
+    branches: [main, "phase/**", "claude/**"]
   workflow_dispatch:
 
 permissions:
@@ -38,6 +38,31 @@ jobs:
         run: make test
       - name: CLI smoke test
         run: uv run qops --version
+
+  compat:
+    name: pin matrix (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install workspace with compat group
+        run: uv sync --locked --group compat
+      - name: Qiskit 2.x + mthree, mitiq, provider SDKs
+        run: uv run --locked --group compat pytest -q tests/test_compat_matrix.py
+      - name: Local runs (GHZ, VQE-H2)
+        run: |
+          uv run --locked qops run --local algorithms/ghz_benchmark
+          uv run --locked qops run --local algorithms/vqe_h2
 
   secrets:
     name: secret scan

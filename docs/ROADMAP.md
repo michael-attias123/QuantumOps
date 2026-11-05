@@ -8,14 +8,17 @@ checked, with each check scripted as `make verify-pN`. The design behind each it
 - **GitOps.** If it runs in the cluster, it's declared in Git. The only imperative steps are `tofu apply` for the
   cluster and the Vault init/seed scripts.
 - **No secrets in Git.** Secrets go through `make seed-secrets` → Vault, or as sensitive OpenTofu variables. gitleaks runs in CI.
+- **One branch per phase:** `phase/pN-<slug>`, branched from the previous phase's branch (or from `main` once that
+  phase is merged). One pull request per phase into `main`.
 - **Work from any computer.** Each machine needs only `git`, `uv`, `tailscale`, `kubectl` (plus `tofu` for P2). Nothing
   depends on one particular laptop.
-- Each phase ends with updated docs (ADRs, runbooks) for whatever it introduced.
+- Each phase ends with updated docs (ADRs, runbooks) for whatever it introduced, **and a phase overview in
+  [`docs/phases/PN.md`](phases/)**: goal, what was built, how to use it, DoD evidence, decisions, limitations, next steps.
 
 | # | Phase | Levels touched | Depends on | Status |
 |---|---|---|---|---|
-| P0 | Foundations | — | — | ✅ |
-| P1 | L0 contract + local runtime | L0, L1, L3 (in-process) | P0 | ☐ |
+| P0 | [Foundations](phases/P0.md) | — | — | ✅ |
+| P1 | [L0 contract + local runtime](phases/P1.md) | L0, L1, L3 (in-process) | P0 | ✅ |
 | P2 | Cloud cluster (OCI Always Free + Tailscale) | platform | P0 | ☐ |
 | P3 | GitOps bootstrap | platform | P2 | ☐ |
 | P4 | Vault + ESO | platform | P3 | ☐ |
@@ -54,18 +57,26 @@ Cost: $0.
 **Goal:** researchers can write pure Qiskit and run the full loop in-process on any laptop.
 
 Build
-- [ ] `qops-core`: contract loader (`sampling`, `variational`, `qec-memory`), models, state serde (`state.json` + `schema_version`), QPY helpers
-- [ ] `qops-providers`: provider interface + capability flags, synchronous `aer` provider
-- [ ] `qops-stages`: SPSA ask/tell with JSON state; measurement grouping + expectation values from counts
-- [ ] `qops-cli`: `qops run --local <path>`, `qops new algorithm <name> --kind …`
-- [ ] Algorithms: `ghz_benchmark`, `vqe_h2`
-- [ ] Version pin matrix for Qiskit 2.x + qiskit-aer + mthree + mitiq + qiskit-ionq + qiskit-braket-provider, tested on amd64 **and arm64**
+- [x] `qops-core`: contract loader (`sampling`, `variational`, `qec-memory`), models, state serde (`state.json` + `schema_version`), QPY helpers
+- [x] `qops-providers`: provider interface + capability flags, synchronous `aer` provider
+- [x] `qops-stages`: SPSA ask/tell with JSON state; measurement grouping + expectation values from counts
+- [x] `qops-cli`: `qops run --local <path>`, `qops new algorithm <name> --kind …`
+- [x] Algorithms: `ghz_benchmark`, `vqe_h2`
+- [x] Version pin matrix for Qiskit 2.x + qiskit-aer + mthree + mitiq + qiskit-ionq + qiskit-braket-provider, tested on amd64 **and arm64**
 
 Definition of Done
-- [ ] GHZ run reports fidelity
-- [ ] VQE-H2 (noiseless) reaches the exact energy within 1.6 mHa
-- [ ] Interrupting and resuming from saved state reproduces an identical trajectory (seeded)
-- [ ] Algorithms contain zero platform imports (checked by a lint rule)
+- [x] GHZ run reports fidelity
+- [x] VQE-H2 (noiseless) reaches the exact energy within 1.6 mHa
+- [x] Interrupting and resuming from saved state reproduces an identical trajectory (seeded)
+- [x] Algorithms contain zero platform imports (checked by a lint rule)
+
+Notes from delivery
+- Results are provider-neutral **probabilities** (`CircuitResult`); exact simulators return exact distributions, real
+  backends return counts that are normalized. Contract signatures: `circuits()`, `analyze(distributions)`.
+- SPSA with automatic calibration converges for VQE-H2 in ~100–150 iterations (error ≈ 1e-6 Ha noiseless), but is
+  still far off at 20–40 iterations. **P8 must tune for small iteration budgets** before spending IBM QPU time
+  (better calibration, fewer parameters, or a resumable gradient-free optimizer).
+- Pin matrix: [compat-matrix.md](compat-matrix.md).
 
 Cost: $0.
 
@@ -74,20 +85,19 @@ Cost: $0.
 ## P2 — Cloud cluster (OCI Always Free + Tailscale)
 **Goal:** an always-on, private, $0 cluster reachable from every computer.
 
-Prerequisites (one-time, by you):
-- Oracle Cloud account (a card is used for identity verification only; nothing is charged).
-- Tailscale account (free personal plan).
+Prerequisites (one-time, by you): see **[Before P2](phases/P2-prerequisites.md)**: Oracle Cloud account (card for
+identity verification only, no charge), API key, state bucket, budget alarm; Tailscale account, tags, HTTPS.
 
 Build
-- [ ] `infra/oci/` (OpenTofu): VCN + subnet, security lists with **no public inbound**, 2× `VM.Standard.A1.Flex` (2 OCPU / 12 GB each)
-- [ ] cloud-init: Tailscale join (auth key as a sensitive var), k3s server/agent bound to the tailnet IP, node labels `qops.io/pool`
+- [ ] `infra/oci/` (OpenTofu): VCN + subnet, security lists with **no public inbound**, **1× `VM.Standard.A1.Flex` (2 OCPU / 12 GB)**: the whole Always Free A1 allowance ([ADR 0008](adr/0008-single-node-a1-cluster.md))
+- [ ] cloud-init: Tailscale join (auth key as a sensitive var), single-node k3s bound to the tailnet IP, node label `qops.io/pool=cpu`, Traefik/servicelb disabled (Tailscale operator exposes services)
 - [ ] OCI KMS key (free) for later Vault auto-unseal
 - [ ] Remote state in OCI Object Storage (S3 backend) + OpenTofu state encryption
 - [ ] `make kubeconfig` (fetch kubeconfig over Tailscale), `make ssh-server`
 - [ ] Runbook: A1 capacity errors, idle-reclaim policy, rebuilding the cluster from scratch
 
 Definition of Done
-- [ ] From a second computer: `tailscale up && make kubeconfig && kubectl get nodes` → 2 Ready arm64 nodes
+- [ ] From a second computer: `tailscale up && make kubeconfig && kubectl get nodes` → 1 Ready arm64 node
 - [ ] The VMs' public IPs answer on no port (checked from outside the tailnet)
 - [ ] `tofu plan` shows no drift; the OCI cost report shows $0
 
@@ -267,7 +277,7 @@ Cost: $0.
 **Goal:** see platform health, queue behavior, science results and cost in one place.
 
 Build
-- [ ] kube-prometheus-stack (short retention), Loki (filesystem) + Alloy via Argo CD, sized for the 24 GB cluster
+- [ ] kube-prometheus-stack (short retention), Loki (filesystem) + Alloy via Argo CD, sized for the 12 GB node (single replicas, ≤ 2 GB for the whole monitoring stack)
 - [ ] Tracker metrics, Argo Workflows custom metrics, Grafana → Supabase (read-only role); Grafana via Tailscale
 - [ ] Dashboards as code: Platform (zero-idle KPI), Remote jobs (QPU + GPU waits, IBM and Kaggle quotas), Science, Cost
 - [ ] Alerts: IBM/Kaggle quota ≥ 80%, READY-not-dispatched > 10 min, workflow failures, Vault sealed, Supabase unreachable, node NotReady
