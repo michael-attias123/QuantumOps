@@ -16,6 +16,7 @@ uv run pre-commit install
 | `make lint` | ruff check, ruff format check, mypy (strict), yamllint |
 | `make fmt` | auto-fix and format |
 | `make test` | pytest (all packages + architecture guards) |
+| `make compat` | version pin matrix (installs the `compat` group) |
 | `make verify-pN` | Definition-of-Done checks for phase N |
 
 ## Rules

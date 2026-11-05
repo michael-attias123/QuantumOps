@@ -34,5 +34,14 @@ make verify-p0
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for make targets and rules, and [docs/adr/](docs/adr/) for key decisions.
 
+## Try it (no cluster needed)
+```bash
+uv run qops run --local algorithms/ghz_benchmark       # GHZ fidelity
+uv run qops run --local algorithms/vqe_h2              # VQE for H2, converges to the exact energy
+uv run qops run --local algorithms/vqe_h2 --max-steps 20   # stop early (writes state.json) ...
+uv run qops run --resume .qops/runs/vqe_h2/state.json      # ... and resume with an identical trajectory
+uv run qops new algorithm my_algo --kind variational        # scaffold a pure-Qiskit algorithm
+```
+
 ## Status
-**P0 — Foundations** done (repo skeleton, uv workspace, lint/test, CI on amd64 + arm64). Next: **P1 — L0 contract + local runtime**.
+**P0 — Foundations** and **P1 — L0 contract + local runtime** done. Next: **P2 — Cloud cluster (OCI Always Free + Tailscale)**.

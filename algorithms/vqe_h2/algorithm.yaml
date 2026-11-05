@@ -1,0 +1,5 @@
+name: vqe_h2
+kind: variational
+description: VQE for the H2 molecule (2-qubit parity-reduced Hamiltonian at 0.735 Å).
+config:
+  reps: 2

@@ -171,28 +171,34 @@ sequenceDiagram
 ## 6. L0 — researcher contract
 
 Researcher code is a plain class in `algorithms/<name>/algorithm.py`. It has no base class, no decorator and no platform
-import; the platform loads it by convention. The experiment's `kind` selects the loop:
+import; the platform loads it by convention (`qops_core.contract.load_algorithm`). Next to it, `algorithm.yaml` declares
+the `kind` and default `config`; the platform calls `Algorithm(config)` with those defaults merged with any overrides.
+The experiment's `kind` selects the loop:
 
 | `kind` | Methods the class provides | Platform provides | Used by |
 |---|---|---|---|
-| `sampling` | `circuits(config) -> list[QuantumCircuit]`, optional `analyze(counts) -> dict` | submit, results, report | GHZ / Bell benchmarks |
+| `sampling` | `circuits() -> list[QuantumCircuit]`, optional `analyze(distributions: list[dict[str, float]]) -> dict` | transpile, submit, results, report | GHZ / Bell benchmarks |
 | `variational` | `ansatz() -> QuantumCircuit` (parameterized), `hamiltonian() -> SparsePauliOp`, `initial_point() -> list[float]`, optional `exact_value()` | ask/tell optimizer loop, measurement grouping, expectation values, mitigation | VQE, QAOA |
-| `qec-memory` | `code() -> {family, distance, rounds, basis}` *or* custom circuits + detector spec | syndrome circuits, Stim DEM, decoding, logical error rate | QEC experiments |
+| `qec-memory` | `code() -> {family, distance, rounds, basis}` *or* custom circuits + detector spec | syndrome circuits, Stim DEM, decoding, logical error rate | QEC experiments (P10) |
 
-Example (VQE, 2-qubit parity-reduced H2 at 0.735 Å):
+`distributions` are outcome probabilities keyed by bitstring (Qiskit order, clbit 0 rightmost), one per circuit, in
+order. Providers return counts or, on exact simulators, exact probabilities; the platform normalizes both
+(`qops_core.models.CircuitResult`).
+
+Example (VQE, 2-qubit parity-reduced H2 at 0.735 Å; the real file is `algorithms/vqe_h2/algorithm.py`):
 
 ```python
 # algorithms/vqe_h2/algorithm.py: pure Qiskit, nothing platform-specific
-from qiskit.circuit.library import efficient_su2
+from qiskit.circuit.library import real_amplitudes
 from qiskit.quantum_info import SparsePauliOp
 
 
 class Algorithm:
-    def __init__(self, config: dict):
-        self.reps = config.get("reps", 1)
+    def __init__(self, config: dict) -> None:
+        self.reps = int(config.get("reps", 2))
 
     def ansatz(self):
-        return efficient_su2(2, reps=self.reps)
+        return real_amplitudes(2, reps=self.reps)
 
     def hamiltonian(self):
         return SparsePauliOp.from_list([
@@ -202,16 +208,27 @@ class Algorithm:
         ])
 
     def initial_point(self):
-        return [0.0] * self.ansatz().num_parameters
+        return [0.1] * self.ansatz().num_parameters
 
     def exact_value(self):
-        return -1.857275  # electronic ground-state energy (Ha)
+        return -1.8572750302023795  # electronic ground-state energy (Ha)
+```
+
+```yaml
+# algorithms/vqe_h2/algorithm.yaml
+name: vqe_h2
+kind: variational
+config:
+  reps: 2
 ```
 
 Notes:
 - The H2 Hamiltonian is hard-coded (qiskit-nature is unmaintained). QAOA uses Qiskit's QAOA ansatz from the circuit library.
 - The platform always uses the **Sampler** primitive and computes expectation values in L3 from raw counts. This keeps data
   provider-neutral and lets our own mitigation run on it.
+- `qops run --local <path>` runs the whole loop in-process on Aer (`exact` or `sampler` backend), writing `state.json`
+  after every iteration; `qops run --resume <state.json>` continues with an identical trajectory.
+  `qops new algorithm <name> --kind …` scaffolds a valid algorithm.
 
 ---
 
@@ -579,8 +596,8 @@ Renovate opens dependency-update PRs (charts, images, Python packages).
 | OCI reclaims idle Always Free VMs (7 days) | P2+ | a running cluster stays busy; paid upgrade only with approval |
 | Kaggle startup latency, quota, API/ToS changes | P9+ | remote GPU only for heavy stages; CPU fallback always available |
 | Vault dynamic roles through Supavisor (`role.projectref`) | P5 | spike; fallback Vault static rotated roles |
-| Qiskit 2.x compatibility of mthree / mitiq / qiskit-ionq / qiskit-braket-provider | P1 | pin matrix, compatibility tests |
-| arm64 wheels for scientific packages | P1 | pin matrix tested on arm64 runners |
+| Qiskit 2.x compatibility of mthree / mitiq / qiskit-ionq / qiskit-braket-provider | P1 | **resolved**: pin matrix passes on amd64 + arm64 ([compat-matrix.md](compat-matrix.md)) |
+| arm64 wheels for scientific packages | P1 | **resolved**: all have aarch64 wheels; mthree needs glibc ≥ 2.34 (base images must be Debian 12+/Ubuntu 22.04+) |
 | IBM queue times of hours | P7+ | expected (that's the point); tests use the emulator |
 | Supabase auto-pause after inactivity | P5+ | alert + runbook |
 

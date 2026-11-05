@@ -15,7 +15,7 @@ checked, with each check scripted as `make verify-pN`. The design behind each it
 | # | Phase | Levels touched | Depends on | Status |
 |---|---|---|---|---|
 | P0 | Foundations | — | — | ✅ |
-| P1 | L0 contract + local runtime | L0, L1, L3 (in-process) | P0 | ☐ |
+| P1 | L0 contract + local runtime | L0, L1, L3 (in-process) | P0 | ✅ |
 | P2 | Cloud cluster (OCI Always Free + Tailscale) | platform | P0 | ☐ |
 | P3 | GitOps bootstrap | platform | P2 | ☐ |
 | P4 | Vault + ESO | platform | P3 | ☐ |
@@ -54,18 +54,26 @@ Cost: $0.
 **Goal:** researchers can write pure Qiskit and run the full loop in-process on any laptop.
 
 Build
-- [ ] `qops-core`: contract loader (`sampling`, `variational`, `qec-memory`), models, state serde (`state.json` + `schema_version`), QPY helpers
-- [ ] `qops-providers`: provider interface + capability flags, synchronous `aer` provider
-- [ ] `qops-stages`: SPSA ask/tell with JSON state; measurement grouping + expectation values from counts
-- [ ] `qops-cli`: `qops run --local <path>`, `qops new algorithm <name> --kind …`
-- [ ] Algorithms: `ghz_benchmark`, `vqe_h2`
-- [ ] Version pin matrix for Qiskit 2.x + qiskit-aer + mthree + mitiq + qiskit-ionq + qiskit-braket-provider, tested on amd64 **and arm64**
+- [x] `qops-core`: contract loader (`sampling`, `variational`, `qec-memory`), models, state serde (`state.json` + `schema_version`), QPY helpers
+- [x] `qops-providers`: provider interface + capability flags, synchronous `aer` provider
+- [x] `qops-stages`: SPSA ask/tell with JSON state; measurement grouping + expectation values from counts
+- [x] `qops-cli`: `qops run --local <path>`, `qops new algorithm <name> --kind …`
+- [x] Algorithms: `ghz_benchmark`, `vqe_h2`
+- [x] Version pin matrix for Qiskit 2.x + qiskit-aer + mthree + mitiq + qiskit-ionq + qiskit-braket-provider, tested on amd64 **and arm64**
 
 Definition of Done
-- [ ] GHZ run reports fidelity
-- [ ] VQE-H2 (noiseless) reaches the exact energy within 1.6 mHa
-- [ ] Interrupting and resuming from saved state reproduces an identical trajectory (seeded)
-- [ ] Algorithms contain zero platform imports (checked by a lint rule)
+- [x] GHZ run reports fidelity
+- [x] VQE-H2 (noiseless) reaches the exact energy within 1.6 mHa
+- [x] Interrupting and resuming from saved state reproduces an identical trajectory (seeded)
+- [x] Algorithms contain zero platform imports (checked by a lint rule)
+
+Notes from delivery
+- Results are provider-neutral **probabilities** (`CircuitResult`); exact simulators return exact distributions, real
+  backends return counts that are normalized. Contract signatures: `circuits()`, `analyze(distributions)`.
+- SPSA with automatic calibration converges for VQE-H2 in ~100–150 iterations (error ≈ 1e-6 Ha noiseless), but is
+  still far off at 20–40 iterations. **P8 must tune for small iteration budgets** before spending IBM QPU time
+  (better calibration, fewer parameters, or a resumable gradient-free optimizer).
+- Pin matrix: [compat-matrix.md](compat-matrix.md).
 
 Cost: $0.
 

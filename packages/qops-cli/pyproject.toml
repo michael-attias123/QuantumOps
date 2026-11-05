@@ -4,7 +4,10 @@ version = "0.0.1"
 description = "The qops command-line interface"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["qops-core"]
+dependencies = [
+    "qops-core",
+    "qops-runtime",
+]
 
 [project.scripts]
 qops = "qops_cli:main"
@@ -15,3 +18,4 @@ build-backend = "uv_build"
 
 [tool.uv.sources]
 qops-core = { workspace = true }
+qops-runtime = { workspace = true }
