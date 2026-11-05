@@ -8,17 +8,17 @@ checked, with each check scripted as `make verify-pN`. The design behind each it
 - **GitOps.** If it runs in the cluster, it's declared in Git. The only imperative steps are `tofu apply` for the
   cluster and the Vault init/seed scripts.
 - **No secrets in Git.** Secrets go through `make seed-secrets` → Vault, or as sensitive OpenTofu variables. gitleaks runs in CI.
-- **One branch per phase:** `phase/pN-<slug>`, branched from the previous phase's branch (or from `main` once that
-  phase is merged). One pull request per phase into `main`.
+- **One branch per phase:** `phase/pN-<slug>` from `main` → PR → merge commit → tag `pN-<slug>` → delete the branch
+  ([ADR 0009](adr/0009-repository-layout-and-branches.md)). New folders appear only when the phase fills them.
 - **Work from any computer.** Each machine needs only `git`, `uv`, `tailscale`, `kubectl` (plus `tofu` for P2). Nothing
   depends on one particular laptop.
 - Each phase ends with updated docs (ADRs, runbooks) for whatever it introduced, **and a phase overview in
-  [`docs/phases/PN.md`](phases/)**: goal, what was built, how to use it, DoD evidence, decisions, limitations, next steps.
+  [`docs/phases/pN-overview.md`](phases/)**: goal, what was built, how to use it, DoD evidence, decisions, limitations, next steps.
 
 | # | Phase | Levels touched | Depends on | Status |
 |---|---|---|---|---|
-| P0 | [Foundations](phases/P0.md) | — | — | ✅ |
-| P1 | [L0 contract + local runtime](phases/P1.md) | L0, L1, L3 (in-process) | P0 | ✅ |
+| P0 | [Foundations](phases/p0-overview.md) | — | — | ✅ |
+| P1 | [L0 contract + local runtime](phases/p1-overview.md) | L0, L1, L3 (in-process) | P0 | ✅ |
 | P2 | Cloud cluster (OCI Always Free + Tailscale) | platform | P0 | ☐ |
 | P3 | GitOps bootstrap | platform | P2 | ☐ |
 | P4 | Vault + ESO | platform | P3 | ☐ |
@@ -76,7 +76,7 @@ Notes from delivery
 - SPSA with automatic calibration converges for VQE-H2 in ~100–150 iterations (error ≈ 1e-6 Ha noiseless), but is
   still far off at 20–40 iterations. **P8 must tune for small iteration budgets** before spending IBM QPU time
   (better calibration, fewer parameters, or a resumable gradient-free optimizer).
-- Pin matrix: [compat-matrix.md](compat-matrix.md).
+- Pin matrix: [compat-matrix.md](reference/compat-matrix.md).
 
 Cost: $0.
 
@@ -85,7 +85,7 @@ Cost: $0.
 ## P2 — Cloud cluster (OCI Always Free + Tailscale)
 **Goal:** an always-on, private, $0 cluster reachable from every computer.
 
-Prerequisites (one-time, by you): see **[Before P2](phases/P2-prerequisites.md)**: Oracle Cloud account (card for
+Prerequisites (one-time, by you): see **[Before P2](phases/p2-prerequisites.md)**: Oracle Cloud account (card for
 identity verification only, no charge), API key, state bucket, budget alarm; Tailscale account, tags, HTTPS.
 
 Build
@@ -132,7 +132,7 @@ Cost: $0.
 
 Build
 - [ ] Vault (Raft standalone, injector, audit device) with **OCI KMS auto-unseal**
-- [ ] `scripts/vault-init.sh`, `make seed-secrets`; recovery keys stored outside the repo; `make unseal` fallback
+- [ ] `deploy/bootstrap/scripts/vault-init.sh`, `make seed-secrets`; recovery keys stored outside the repo; `make unseal` fallback
 - [ ] vault-config-operator; policies, k8s auth roles, KV v2 mount declared as CRs
 - [ ] ESO + ClusterSecretStore + ExternalSecrets for provider tokens (IBM, IonQ, Kaggle)
 - [ ] ServiceAccounts `qops-l1`, `qops-l3`, `job-tracker` with distinct policies
@@ -152,7 +152,7 @@ Spike: OCI KMS auto-unseal (fallback `make unseal` over Tailscale). · Cost: $0.
 
 Build
 - [ ] `infra/supabase/` (OpenTofu, state encryption): free project + settings
-- [ ] `db/migrations/` (dbmate): `runs`, `iterations`, `remote_jobs`, `outbox`, `qpu_usage`, `gpu_usage`, `backend_cache`; RLS on, no policies
+- [ ] `packages/qops-core/migrations/` (dbmate): `runs`, `iterations`, `remote_jobs`, `outbox`, `qpu_usage`, `gpu_usage`, `backend_cache`; RLS on, no policies
 - [ ] Storage bucket `qops-artifacts`, signed-URL helpers, retention CronJob
 - [ ] Argo CD PreSync migration Job (`qops-migrator` creds)
 - [ ] Vault DB secrets engine via the Supavisor pooler: `qops-worker`, `qops-tracker`, `qops-migrator`, `qops-grafana-ro`
@@ -180,10 +180,10 @@ Build
 - [ ] WorkflowTemplates: `qops-run`, `qops-iteration`, `handle-failure`, `cancel-run` (git input artifact, Vault Agent init-only)
 - [ ] `job-tracker`: `FOR UPDATE SKIP LOCKED` polling, adaptive backoff, result fetch → Storage, outbox dispatcher, `/metrics`
 - [ ] CLI: `qops run --cluster`, `qops status`, `qops logs` (work from any tailnet computer)
-- [ ] `experiments/ghz-emulator.yaml`; `e2e.yml` on kind
+- [ ] `research/experiments/ghz-emulator.yaml`; `e2e.yml` on kind
 
 Definition of Done
-- [ ] Committing `experiments/ghz-emulator.yaml` → run `SUCCEEDED`, CR status updated
+- [ ] Committing `research/experiments/ghz-emulator.yaml` → run `SUCCEEDED`, CR status updated
 - [ ] **Zero `qops-runs` pods during the emulated queue wait**
 - [ ] A duplicate webhook is a no-op; killing the tracker mid-wait still completes the run
 - [ ] `e2e.yml` runs this scenario on kind in CI
@@ -240,7 +240,7 @@ Build
 - [ ] Stage plugin system (`prepare()` in L1, `apply()` in L3; entry points)
 - [ ] `m3`, `zne` (Mitiq folding + extrapolation), `cdr`
 - [ ] Remote-GPU adapter `qops_providers.gpu` (same interface as the QPU adapter) with `kaggle` and `local-cpu` implementations
-- [ ] `kaggle/` kernel template: installs `qops-stages` at the pinned SHA, reads input and writes output only through signed URLs
+- [ ] `packages/qops-providers/src/qops_providers/gpu/kaggle/` kernel template: installs `qops-stages` at the pinned SHA, reads input and writes output only through signed URLs
 - [ ] job-tracker generalized to `remote_jobs.kind = gpu`; `gpu-job-ready` / `gpu-job-failed` events; `GPU_*` iteration states
 - [ ] `gpu_usage` weekly quota guard (refuse at ≥ 80%, `auto` falls back to CPU); `accelerator: cpu | remote-gpu | auto` routing with size thresholds
 - [ ] Kaggle API key in Vault, readable only by `qops-l3` and `job-tracker`

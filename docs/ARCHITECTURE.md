@@ -14,7 +14,7 @@ idle while a job waits in a cloud QPU queue.
 
 | Level | Where it runs | Responsibility |
 |---|---|---|
-| **L0 · Code** | Git repo (`algorithms/`) | Pure Qiskit. No decorators, no infrastructure imports |
+| **L0 · Code** | Git repo (`research/algorithms/`) | Pure Qiskit. No decorators, no infrastructure imports |
 | **L1 · CPU** | K8s CPU pool | Build circuits → mitigation/QEC *prepare* → transpile → cost guard → submit → **exit** |
 | **L2 · QPU** | External quantum API | IBM Quantum · IonQ simulator · Braket local simulator · in-cluster QPU emulator |
 | **L3 · GPU/CPU** | K8s CPU pool + **remote free GPU via API** (Kaggle) | Hydrate state → error mitigation + QEC decoding → optimizer step → finalize or loop to L1. Heavy stages are submitted to the remote GPU *exactly like a QPU job* |
@@ -50,8 +50,8 @@ idle while a job waits in a cloud QPU queue.
 ```mermaid
 flowchart TB
   subgraph GH["GitHub · public monorepo"]
-    ALG["algorithms/ (L0)"]
-    EXP["experiments/*.yaml"]
+    ALG["research/algorithms/ (L0)"]
+    EXP["research/experiments/*.yaml"]
     DEP["deploy/ (GitOps)"]
     CI["GitHub Actions → GHCR images"]
   end
@@ -114,7 +114,7 @@ sequenceDiagram
   participant W3 as L3 CPU pod
   participant K as Kaggle GPU
 
-  R->>G: PR adds experiments/vqe-h2.yaml → merge
+  R->>G: PR adds research/experiments/vqe-h2.yaml → merge
   A->>G: pull (sync)
   A->>E: QuantumExperiment created (resource EventSource)
   E->>W1: Workflow qops-run (init-run → prepare-submit)
@@ -170,7 +170,7 @@ sequenceDiagram
 
 ## 6. L0 — researcher contract
 
-Researcher code is a plain class in `algorithms/<name>/algorithm.py`. It has no base class, no decorator and no platform
+Researcher code is a plain class in `research/algorithms/<name>/algorithm.py`. It has no base class, no decorator and no platform
 import; the platform loads it by convention (`qops_core.contract.load_algorithm`). Next to it, `algorithm.yaml` declares
 the `kind` and default `config`; the platform calls `Algorithm(config)` with those defaults merged with any overrides.
 The experiment's `kind` selects the loop:
@@ -185,10 +185,10 @@ The experiment's `kind` selects the loop:
 order. Providers return counts or, on exact simulators, exact probabilities; the platform normalizes both
 (`qops_core.models.CircuitResult`).
 
-Example (VQE, 2-qubit parity-reduced H2 at 0.735 Å; the real file is `algorithms/vqe_h2/algorithm.py`):
+Example (VQE, 2-qubit parity-reduced H2 at 0.735 Å; the real file is `research/algorithms/vqe_h2/algorithm.py`):
 
 ```python
-# algorithms/vqe_h2/algorithm.py: pure Qiskit, nothing platform-specific
+# research/algorithms/vqe_h2/algorithm.py: pure Qiskit, nothing platform-specific
 from qiskit.circuit.library import real_amplitudes
 from qiskit.quantum_info import SparsePauliOp
 
@@ -215,7 +215,7 @@ class Algorithm:
 ```
 
 ```yaml
-# algorithms/vqe_h2/algorithm.yaml
+# research/algorithms/vqe_h2/algorithm.yaml
 name: vqe_h2
 kind: variational
 config:
@@ -234,7 +234,7 @@ Notes:
 
 ## 7. Trigger — the `QuantumExperiment` CRD
 
-`qops.io/v1alpha1`, kind `QuantumExperiment`, short name `qx`. Experiments are committed to `experiments/` and synced by
+`qops.io/v1alpha1`, kind `QuantumExperiment`, short name `qx`. Experiments are committed to `research/experiments/` and synced by
 Argo CD; Argo Events' **resource EventSource** watches the CRD and starts the run. No custom controller is needed.
 
 ```yaml
@@ -245,7 +245,7 @@ metadata:
 spec:
   kind: variational
   algorithm:
-    path: algorithms/vqe_h2
+    path: research/algorithms/vqe_h2
     gitRef: main            # resolved to a commit SHA at run start and pinned
     config: { reps: 1 }
   provider:
@@ -269,7 +269,7 @@ status:                     # status subresource, written by the platform; Argo 
   lastError: ""
 ```
 
-- **Code pinning:** workflow pods fetch `algorithms/` at the resolved commit through Argo Workflows' *git input
+- **Code pinning:** workflow pods fetch `research/algorithms/` at the resolved commit through Argo Workflows' *git input
   artifact*, which makes every run reproducible.
 - **Dev runs:** `qops run --cluster <path>` creates the CR in `qops-dev` and ships the uncommitted algorithm code as a
   ConfigMap. The same pipeline runs, but it isn't GitOps-managed.
@@ -418,7 +418,7 @@ In CI and offline dev the same code runs against in-cluster **Postgres + MinIO**
   `state.json` (algorithm + optimizer state, RNG seeds, `schema_version`, git SHA, image digests) · `circuits.qpy` ·
   `prep_meta.json` · `results.npz.zst` · `post.json`.
 - **Retention:** a CronJob prunes old artifacts to stay under 500 MB DB / 1 GB storage.
-- **Migrations:** dbmate SQL in `db/migrations/`, applied by an Argo CD **PreSync hook Job** using the Vault `qops-migrator` role.
+- **Migrations:** dbmate SQL in `packages/qops-core/migrations/`, applied by an Argo CD **PreSync hook Job** using the Vault `qops-migrator` role.
 - **Supabase project and settings:** managed with OpenTofu (`infra/supabase/`) with native state encryption.
 
 ---
@@ -427,7 +427,7 @@ In CI and offline dev the same code runs against in-cluster **Postgres + MinIO**
 
 Vault OSS, Raft storage (standalone), agent injector enabled, audit device on (shipped to Loki).
 
-**Bootstrap (the only imperative step):** `scripts/vault-init.sh` initializes and unseals Vault, stores the keys *outside* the
+**Bootstrap (the only imperative step):** `deploy/bootstrap/scripts/vault-init.sh` initializes and unseals Vault, stores the keys *outside* the
 repo (`~/.qops/`), and enables k8s auth for vault-config-operator. Everything after that is declared as
 vault-config-operator CRs in Git. Vault uses **OCI KMS auto-unseal** (free tier), so no laptop is needed after a restart;
 the fallback is `make unseal` over Tailscale.
@@ -464,35 +464,37 @@ Secrets enter Vault only through `make seed-secrets` (interactive prompts). **gi
 ## 13. GitOps, repository layout, CI/CD
 
 ### Repository layout (monorepo)
+Folders are created **just in time** by the phase that puts real files in them; there are no empty placeholders
+([ADR 0009](adr/0009-repository-layout-and-branches.md)). ✅ = exists today; otherwise the phase that creates it.
+
 ```
-algorithms/{ghz_benchmark,vqe_h2,qaoa_maxcut,qec_repetition,qec_surface}/   # L0 researcher code
-experiments/*.yaml                         # QuantumExperiment CRs (GitOps run requests)
-packages/                                  # uv workspace
-  qops-core/       # models, contract loader, state serde, store (Postgres + S3), config
-  qops-providers/  # adapter interface + emulator, ibm, ionq, braket
-  qops-stages/     # mitigation, decoders, optimizers
-  qops-runtime/    # workflow entrypoints: init-run, prepare-submit, postprocess, finalize, cancel
-  qops-tracker/    # status tracker + outbox dispatcher + metrics
-  qops-emulator/   # in-cluster async fake QPU
-  qops-cli/        # `qops` CLI
-images/{runtime,tracker,emulator}/Dockerfile      # linux/arm64 + linux/amd64
-kaggle/                                    # remote GPU kernel template + pinned requirements
-db/migrations/                             # dbmate SQL
-deploy/
-  bootstrap/                               # Argo CD values + root Application
-  apps/                                    # app-of-apps Helm chart (one value set per env)
-  platform/<component>/values.yaml         # upstream charts (multi-source Applications)
-  charts/qops/                             # CRD, WorkflowTemplates, EventBus/EventSources/Sensors, tracker,
-                                           # emulator, ExternalSecrets, Vault CRs, RBAC, NetworkPolicies,
-                                           # dashboards, Kyverno policies
-  envs/{oci,ci}/                           # oci = the real cluster, ci = kind in GitHub Actions
-infra/
-  oci/                                     # OpenTofu: VCN, 1× A1 VM, k3s cloud-init, Tailscale, KMS
-  ci/                                      # kind config for e2e
-  github/  supabase/                       # OpenTofu (repo settings, Supabase project)
-scripts/                                   # bootstrap, vault-init, unseal, seed-secrets
-docs/                                      # ARCHITECTURE, ROADMAP, adr/, runbooks/, reference/
-Makefile
+research/                                  ✅ what researchers touch
+  algorithms/<name>/                       ✅ L0 pure-Qiskit code (ghz_benchmark, vqe_h2; qaoa_maxcut P8; qec_* P10)
+  experiments/*.yaml                       P6  QuantumExperiment CRs (GitOps run requests)
+packages/                                  ✅ uv workspace; each service owns its Dockerfile (P6)
+  qops-core/                               ✅ models, contract, state; store (Postgres + S3) P5; migrations/ (dbmate) P5
+  qops-providers/                          ✅ adapter interface + aer; emulator P6; ibm/ionq/braket P7; gpu/kaggle/ P9
+  qops-stages/                             ✅ optimizers, measurement; mitigation P9; decoders P10
+  qops-runtime/                            ✅ local loop; workflow entrypoints P6
+  qops-tracker/  qops-emulator/            P6  remote-job tracker + outbox, async fake QPU
+  qops-cli/                                ✅ `qops` CLI
+deploy/                                    P3  everything Argo CD syncs
+  bootstrap/                               P3  Argo CD values + root Application; scripts/ (vault-init, seed-secrets) P4
+  apps/                                    P3  app-of-apps chart (one value set per env)
+  platform/<component>/values.yaml         P3+ upstream charts (multi-source Applications)
+  charts/qops/                             P6  CRD, WorkflowTemplates, Events, tracker, emulator, ExternalSecrets,
+                                               Vault CRs, RBAC, NetworkPolicies, dashboards, Kyverno policies
+  envs/{oci,ci}/                           P3  oci = the real cluster, ci = kind in GitHub Actions
+infra/                                         OpenTofu
+  ci/kind-config.yaml                      ✅ kind cluster for e2e tests (P6)
+  oci/                                     P2  VCN, 1× A1 VM, k3s cloud-init, Tailscale, KMS
+  github/                                  P3  repo settings, branch protection
+  supabase/                                P5  Supabase project
+tests/                                     ✅ repo-wide guards: architecture, algorithm contract, pin matrix
+docs/                                      ✅ README index, ARCHITECTURE, ROADMAP, adr/, phases/, reference/; runbooks/ P2
+make/                                      ✅ make includes: dev.mk, verify.mk; infra.mk P2, deploy.mk P3 …
+.github/                                   ✅ workflows/, CONTRIBUTING.md, renovate.json, linters/
+Makefile  pyproject.toml  uv.lock  README.md
 ```
 
 ### Argo CD
@@ -507,7 +509,7 @@ Makefile
 | 0 | ESO, vault-config-operator, Argo Workflows, Argo Events, Tailscale operator, monitoring |
 | 1 | qops config: ClusterSecretStore, ExternalSecrets, Vault CRs, EventBus, EventSources, Sensors, WorkflowTemplates, QuantumExperiment CRD |
 | 2 | DB migration PreSync Job, job-tracker, qpu-emulator |
-| 3 | `experiments/` |
+| 3 | `research/experiments/` |
 
 - Removing an experiment file prunes the CR, which cancels or archives the run.
 
@@ -603,7 +605,7 @@ later without chart changes.
 | OCI reclaims idle Always Free VMs (7 days) | P2+ | a running cluster stays busy; paid upgrade only with approval |
 | Kaggle startup latency, quota, API/ToS changes | P9+ | remote GPU only for heavy stages; CPU fallback always available |
 | Vault dynamic roles through Supavisor (`role.projectref`) | P5 | spike; fallback Vault static rotated roles |
-| Qiskit 2.x compatibility of mthree / mitiq / qiskit-ionq / qiskit-braket-provider | P1 | **resolved**: pin matrix passes on amd64 + arm64 ([compat-matrix.md](compat-matrix.md)) |
+| Qiskit 2.x compatibility of mthree / mitiq / qiskit-ionq / qiskit-braket-provider | P1 | **resolved**: pin matrix passes on amd64 + arm64 ([compat-matrix.md](reference/compat-matrix.md)) |
 | arm64 wheels for scientific packages | P1 | **resolved**: all have aarch64 wheels; mthree needs glibc ≥ 2.34 (base images must be Debian 12+/Ubuntu 22.04+) |
 | IBM queue times of hours | P7+ | expected (that's the point); tests use the emulator |
 | Supabase auto-pause after inactivity | P5+ | alert + runbook |

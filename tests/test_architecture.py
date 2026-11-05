@@ -1,6 +1,6 @@
 """Architecture guards: enforce layering rules from docs/ARCHITECTURE.md by scanning imports.
 
-- Researcher code under ``algorithms/`` must stay pure Qiskit: no ``qops_*`` imports.
+- Researcher code under ``research/algorithms/`` must stay pure Qiskit: no ``qops_*`` imports.
 - ``qops_core`` is the bottom layer: it must not import any other ``qops_*`` package.
 """
 
@@ -42,9 +42,9 @@ def test_imported_modules_parses_both_import_forms(tmp_path: Path) -> None:
 
 
 def test_algorithms_are_pure_qiskit() -> None:
-    algorithms = REPO_ROOT / "algorithms"
+    algorithms = REPO_ROOT / "research" / "algorithms"
     if not algorithms.exists():
-        pytest.skip("no algorithms/ directory")
+        pytest.skip("no research/algorithms/ directory")
     assert violations(algorithms, ("qops_",)) == []
 
 

@@ -8,7 +8,7 @@ idle while jobs wait in cloud quantum queues.
 
 | Level | Runs on | Does |
 |---|---|---|
-| **L0 · Code** | this repo (`algorithms/`) | pure Qiskit: no decorators, no infrastructure imports |
+| **L0 · Code** | this repo (`research/algorithms/`) | pure Qiskit: no decorators, no infrastructure imports |
 | **L1 · CPU** | Kubernetes CPU pool | build circuits, prepare mitigation/QEC, transpile, cost-check, submit, exit |
 | **L2 · QPU** | quantum cloud API | IBM Quantum, IonQ simulator, Braket local simulator, in-cluster emulator |
 | **L3 · GPU/CPU** | Kubernetes CPU pool + free remote GPU via API (Kaggle) | error mitigation (M3, ZNE, CDR), QEC decoding (PyMatching, CUDA-Q QEC), optimizer step |
@@ -19,11 +19,21 @@ Supabase (Postgres + Storage) · Qiskit 2.x · Prometheus/Grafana/Loki · Kyvern
 **Principles:** zero-idle compute · state hydration between ephemeral pods · event-driven and pull-based ·
 GitOps for everything (including Vault config, DB schema and experiment runs) · **$0 budget with paid paths blocked by default**
 
+## Repository map
+| Folder | What's inside |
+|---|---|
+| [`research/`](research/) | **Start here as a researcher:** `algorithms/` (pure Qiskit) and `experiments/` (run requests) |
+| [`packages/`](packages/) | the Python platform (`qops-*` packages, one uv workspace) |
+| [`infra/`](infra/) | OpenTofu infrastructure (Oracle cluster from P2) and the CI kind config |
+| [`tests/`](tests/) | repo-wide guards: architecture rules, algorithm contract, pin matrix |
+| [`docs/`](docs/) | [index](docs/README.md): architecture, roadmap, decisions, phase overviews |
+| [`make/`](make/) | make targets by area (`make help` lists them all) |
+
+GitOps manifests (`deploy/`) arrive in P3; each phase adds only the folders it fills.
+
 ## Documentation
-- [Architecture](docs/ARCHITECTURE.md): full system design
-- [Roadmap](docs/ROADMAP.md): phases P0–P12 with Definitions of Done
-- [Phase overviews](docs/phases/): what each finished phase delivered
-- [Original blueprint](docs/reference/original-blueprint.md): the starting idea
+See the **[docs index](docs/README.md)**: [Architecture](docs/ARCHITECTURE.md) · [Roadmap](docs/ROADMAP.md) ·
+[Phase overviews](docs/phases/) · [Decisions](docs/adr/)
 
 ## Quickstart (any computer)
 Requirements: `git` and [uv](https://docs.astral.sh/uv/).
@@ -33,13 +43,13 @@ git clone https://github.com/michael-attias123/QuantumOps.git && cd QuantumOps
 make verify-p0
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for make targets and rules, and [docs/adr/](docs/adr/) for key decisions.
+See [CONTRIBUTING.md](.github/CONTRIBUTING.md) for make targets and rules, and [docs/adr/](docs/adr/) for key decisions.
 
 ## Try it (no cluster needed)
 ```bash
-uv run qops run --local algorithms/ghz_benchmark       # GHZ fidelity
-uv run qops run --local algorithms/vqe_h2              # VQE for H2, converges to the exact energy
-uv run qops run --local algorithms/vqe_h2 --max-steps 20   # stop early (writes state.json) ...
+uv run qops run --local research/algorithms/ghz_benchmark       # GHZ fidelity
+uv run qops run --local research/algorithms/vqe_h2              # VQE for H2, converges to the exact energy
+uv run qops run --local research/algorithms/vqe_h2 --max-steps 20   # stop early (writes state.json) ...
 uv run qops run --resume .qops/runs/vqe_h2/state.json      # ... and resume with an identical trajectory
 uv run qops new algorithm my_algo --kind variational        # scaffold a pure-Qiskit algorithm
 ```

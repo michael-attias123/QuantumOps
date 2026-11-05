@@ -1,4 +1,4 @@
-"""Every algorithm under algorithms/ satisfies the L0 contract for its declared kind."""
+"""Every algorithm under research/algorithms/ satisfies the L0 contract for its declared kind."""
 
 from pathlib import Path
 
@@ -7,7 +7,9 @@ import pytest
 from qops_core.contract import load_algorithm
 
 ALGORITHMS = sorted(
-    p for p in (Path(__file__).resolve().parents[1] / "algorithms").iterdir() if p.is_dir()
+    p
+    for p in (Path(__file__).resolve().parents[1] / "research" / "algorithms").iterdir()
+    if p.is_dir()
 )
 
 

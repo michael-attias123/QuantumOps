@@ -112,8 +112,8 @@ optimizer).
 
 ## Try it
 ```bash
-uv run qops run --local algorithms/vqe_h2
-uv run qops run --local algorithms/vqe_h2 --shots 4000 --maxiter 100
-uv run qops run --local algorithms/vqe_h2 --seed 42
-uv run qops run --local algorithms/vqe_h2 --max-steps 20 && uv run qops run --resume .qops/runs/vqe_h2/state.json
+uv run qops run --local research/algorithms/vqe_h2
+uv run qops run --local research/algorithms/vqe_h2 --shots 4000 --maxiter 100
+uv run qops run --local research/algorithms/vqe_h2 --seed 42
+uv run qops run --local research/algorithms/vqe_h2 --max-steps 20 && uv run qops run --resume .qops/runs/vqe_h2/state.json
 ```

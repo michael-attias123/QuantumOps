@@ -1,4 +1,4 @@
-# algorithms/ — researcher code (L0)
+# research/algorithms/ — researcher code (L0)
 
 This folder is where the **science** lives. Everything here is plain Python + Qiskit. An algorithm never knows whether it
 runs on your laptop, on the cluster, on a simulator or on real IBM hardware: the platform decides that.
@@ -74,13 +74,13 @@ The platform will build the syndrome-extraction circuits, run them, and decode t
 
 ## Run, resume, create
 ```bash
-uv run qops run --local algorithms/ghz_benchmark                  # exact (noiseless) probabilities
-uv run qops run --local algorithms/ghz_benchmark --shots 2000     # shot-based sampling
-uv run qops run --local algorithms/ghz_benchmark --set num_qubits=6
-uv run qops run --local algorithms/vqe_h2 --maxiter 150 --seed 7
-uv run qops run --local algorithms/vqe_h2 --max-steps 20          # stop early, state in .qops/runs/vqe_h2/
+uv run qops run --local research/algorithms/ghz_benchmark                  # exact (noiseless) probabilities
+uv run qops run --local research/algorithms/ghz_benchmark --shots 2000     # shot-based sampling
+uv run qops run --local research/algorithms/ghz_benchmark --set num_qubits=6
+uv run qops run --local research/algorithms/vqe_h2 --maxiter 150 --seed 7
+uv run qops run --local research/algorithms/vqe_h2 --max-steps 20          # stop early, state in .qops/runs/vqe_h2/
 uv run qops run --resume .qops/runs/vqe_h2/state.json             # continue, identical trajectory
-uv run qops run --local algorithms/vqe_h2 --json                  # machine-readable report
+uv run qops run --local research/algorithms/vqe_h2 --json                  # machine-readable report
 uv run qops new algorithm my_algo --kind variational              # scaffold a new, valid algorithm
 ```
 
@@ -96,6 +96,6 @@ uv run qops new algorithm my_algo --kind variational              # scaffold a n
 ## Writing your own: checklist
 1. `uv run qops new algorithm my_algo --kind variational` (or `sampling`).
 2. Edit `algorithm.py` with Qiskit only, and put tunable values in `algorithm.yaml` under `config`.
-3. `uv run qops run --local algorithms/my_algo`.
+3. `uv run qops run --local research/algorithms/my_algo`.
 4. `make test` (the contract and purity checks run automatically).
-5. Commit. From P6, adding an `experiments/<name>.yaml` that points at it runs it on the cluster.
+5. Commit. From P6, adding a `research/experiments/<name>.yaml` that points at it runs it on the cluster.

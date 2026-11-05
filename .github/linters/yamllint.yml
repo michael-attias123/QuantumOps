@@ -2,6 +2,7 @@ extends: default
 
 ignore: |
   .venv/
+  .cache/
   docs/reference/
 
 rules:

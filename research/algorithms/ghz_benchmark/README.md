@@ -61,6 +61,6 @@ oscillations, measuring at n+1 phase angles. That can be added later without cha
 
 ## Try it
 ```bash
-uv run qops run --local algorithms/ghz_benchmark
-uv run qops run --local algorithms/ghz_benchmark --set num_qubits=8 --shots 4000
+uv run qops run --local research/algorithms/ghz_benchmark
+uv run qops run --local research/algorithms/ghz_benchmark --set num_qubits=8 --shots 4000
 ```

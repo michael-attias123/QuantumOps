@@ -13,6 +13,7 @@ rewritten after acceptance; supersede it with a new ADR instead.
 | [0006](0006-remote-gpu-via-kaggle.md) | Remote GPU via the Kaggle API, used like a QPU |
 | [0007](0007-zero-cost-policy.md) | $0 policy with two-gate paid paths |
 | [0008](0008-single-node-a1-cluster.md) | Single-node cluster on the reduced A1 allowance (amends 0002) |
+| [0009](0009-repository-layout-and-branches.md) | Repository layout and branch lifecycle |
 
 ## Template
 
