@@ -487,7 +487,7 @@ deploy/
                                            # dashboards, Kyverno policies
   envs/{oci,ci}/                           # oci = the real cluster, ci = kind in GitHub Actions
 infra/
-  oci/                                     # OpenTofu: VCN, 2× A1 VMs, k3s cloud-init, Tailscale, KMS
+  oci/                                     # OpenTofu: VCN, 1× A1 VM, k3s cloud-init, Tailscale, KMS
   ci/                                      # kind config for e2e
   github/  supabase/                       # OpenTofu (repo settings, Supabase project)
 scripts/                                   # bootstrap, vault-init, unseal, seed-secrets
@@ -529,8 +529,11 @@ Renovate opens dependency-update PRs (charts, images, Python packages).
 
 | Node | Shape | Labels | Workloads |
 |---|---|---|---|
-| `server` | VM.Standard.A1.Flex, 2 OCPU / 12 GB | `qops.io/pool=system` | k3s server, Argo CD, Vault, Argo, ESO, monitoring |
-| `agent` | VM.Standard.A1.Flex, 2 OCPU / 12 GB | `qops.io/pool=cpu` | L1/L3 pods, job-tracker, emulator |
+| `qops-node` | VM.Standard.A1.Flex, **2 OCPU / 12 GB** (the whole Always Free A1 allowance) | `qops.io/pool=cpu` | everything: k3s, platform components, L1/L3 pods, job-tracker, emulator |
+
+A single node, because Oracle reportedly halved Always Free A1 to 2 OCPU / 12 GB in mid-2026 ([ADR 0008](adr/0008-single-node-a1-cluster.md)).
+Platform components carry no node selector; compute pods select `qops.io/pool=cpu`, so more nodes or pools can be added
+later without chart changes.
 
 - **Access:** the VMs have **no public inbound ports**. SSH and the k3s API are reachable only over **Tailscale**
   (free personal plan). UIs (Argo CD, Argo Workflows, Vault, Grafana) are exposed by the Tailscale Kubernetes operator at
@@ -538,7 +541,11 @@ Renovate opens dependency-update PRs (charts, images, Python packages).
 - **k3s rather than OKE**, so the cluster stays portable and other nodes can join over the tailnet later.
 - **OpenTofu state:** OCI Object Storage (Always Free, S3-compatible backend) with OpenTofu state encryption. OCI API keys
   and Tailscale auth keys are sensitive variables or env vars, never committed.
-- **Footprint:** 24 GB total. Prometheus retention is short, Loki uses filesystem storage, and emulator QEC sizes stay CPU-friendly.
+- **Footprint budget (12 GB):** k3s ~1 GB · Argo CD ~1 GB · Vault + ESO + vault-config-operator ~0.6 GB · Argo Workflows +
+  Events + NATS ~0.8 GB · Tailscale operator ~0.1 GB · monitoring ≤ 2 GB (short retention, Loki optional) · Kyverno ~0.5 GB →
+  ~6 GB platform, leaving ~5 GB for workflow pods, the tracker and the emulator. Every component runs one replica with
+  explicit requests/limits; workflow parallelism is capped so pods queue instead of overcommitting. Traefik and servicelb
+  are disabled because the Tailscale operator exposes services.
 - **Portability:** node pools are only labels; a GPU node (paid, or a machine joined over Tailscale) could be added later
   **with approval** without chart changes.
 - **CI/offline:** kind (amd64) with the `ci` overlay.
@@ -581,7 +588,7 @@ Renovate opens dependency-update PRs (charts, images, Python packages).
 | IBM Quantum Open Plan | 10 QPU-min / month | Pay-as-you-go plan |
 | IonQ | cloud simulator | QPU backends |
 | AWS Braket | local simulator | managed simulators, QPUs |
-| OCI Always Free | 2× A1.Flex (4 OCPU / 24 GB total), 200 GB block, object storage, KMS; card for signup only | upgrading to pay-as-you-go, non-free shapes, any cloud GPU |
+| OCI Always Free | 1× A1.Flex (2 OCPU / 12 GB, the whole A1 allowance), 200 GB block, object storage, KMS; card for signup only | upgrading to pay-as-you-go, non-free shapes, any cloud GPU |
 | Tailscale | free personal plan | — |
 | Kaggle | ~30 GPU-hours/week | — (quota guard stops at 80%) |
 | Vault, Argo CD/Workflows/Events, ESO, Kyverno, Prometheus, Grafana, Loki, Mitiq, PyMatching, Stim, CUDA-Q | OSS | — |

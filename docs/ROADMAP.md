@@ -89,15 +89,15 @@ Prerequisites (one-time, by you): see **[Before P2](phases/P2-prerequisites.md)*
 identity verification only, no charge), API key, state bucket, budget alarm; Tailscale account, tags, HTTPS.
 
 Build
-- [ ] `infra/oci/` (OpenTofu): VCN + subnet, security lists with **no public inbound**, 2× `VM.Standard.A1.Flex` (2 OCPU / 12 GB each)
-- [ ] cloud-init: Tailscale join (auth key as a sensitive var), k3s server/agent bound to the tailnet IP, node labels `qops.io/pool`
+- [ ] `infra/oci/` (OpenTofu): VCN + subnet, security lists with **no public inbound**, **1× `VM.Standard.A1.Flex` (2 OCPU / 12 GB)**: the whole Always Free A1 allowance ([ADR 0008](adr/0008-single-node-a1-cluster.md))
+- [ ] cloud-init: Tailscale join (auth key as a sensitive var), single-node k3s bound to the tailnet IP, node label `qops.io/pool=cpu`, Traefik/servicelb disabled (Tailscale operator exposes services)
 - [ ] OCI KMS key (free) for later Vault auto-unseal
 - [ ] Remote state in OCI Object Storage (S3 backend) + OpenTofu state encryption
 - [ ] `make kubeconfig` (fetch kubeconfig over Tailscale), `make ssh-server`
 - [ ] Runbook: A1 capacity errors, idle-reclaim policy, rebuilding the cluster from scratch
 
 Definition of Done
-- [ ] From a second computer: `tailscale up && make kubeconfig && kubectl get nodes` → 2 Ready arm64 nodes
+- [ ] From a second computer: `tailscale up && make kubeconfig && kubectl get nodes` → 1 Ready arm64 node
 - [ ] The VMs' public IPs answer on no port (checked from outside the tailnet)
 - [ ] `tofu plan` shows no drift; the OCI cost report shows $0
 
@@ -277,7 +277,7 @@ Cost: $0.
 **Goal:** see platform health, queue behavior, science results and cost in one place.
 
 Build
-- [ ] kube-prometheus-stack (short retention), Loki (filesystem) + Alloy via Argo CD, sized for the 24 GB cluster
+- [ ] kube-prometheus-stack (short retention), Loki (filesystem) + Alloy via Argo CD, sized for the 12 GB node (single replicas, ≤ 2 GB for the whole monitoring stack)
 - [ ] Tracker metrics, Argo Workflows custom metrics, Grafana → Supabase (read-only role); Grafana via Tailscale
 - [ ] Dashboards as code: Platform (zero-idle KPI), Remote jobs (QPU + GPU waits, IBM and Kaggle quotas), Science, Cost
 - [ ] Alerts: IBM/Kaggle quota ≥ 80%, READY-not-dispatched > 10 min, workflow failures, Vault sealed, Supabase unreachable, node NotReady
