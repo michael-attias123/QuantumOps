@@ -10,12 +10,13 @@ checked, with each check scripted as `make verify-pN`. The design behind each it
 - **No secrets in Git.** Secrets go through `make seed-secrets` → Vault, or as sensitive OpenTofu variables. gitleaks runs in CI.
 - **Work from any computer.** Each machine needs only `git`, `uv`, `tailscale`, `kubectl` (plus `tofu` for P2). Nothing
   depends on one particular laptop.
-- Each phase ends with updated docs (ADRs, runbooks) for whatever it introduced.
+- Each phase ends with updated docs (ADRs, runbooks) for whatever it introduced, **and a phase overview in
+  [`docs/phases/PN.md`](phases/)**: goal, what was built, how to use it, DoD evidence, decisions, limitations, next steps.
 
 | # | Phase | Levels touched | Depends on | Status |
 |---|---|---|---|---|
-| P0 | Foundations | — | — | ✅ |
-| P1 | L0 contract + local runtime | L0, L1, L3 (in-process) | P0 | ✅ |
+| P0 | [Foundations](phases/P0.md) | — | — | ✅ |
+| P1 | [L0 contract + local runtime](phases/P1.md) | L0, L1, L3 (in-process) | P0 | ✅ |
 | P2 | Cloud cluster (OCI Always Free + Tailscale) | platform | P0 | ☐ |
 | P3 | GitOps bootstrap | platform | P2 | ☐ |
 | P4 | Vault + ESO | platform | P3 | ☐ |

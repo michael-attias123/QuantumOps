@@ -22,6 +22,7 @@ GitOps for everything (including Vault config, DB schema and experiment runs) ·
 ## Documentation
 - [Architecture](docs/ARCHITECTURE.md): full system design
 - [Roadmap](docs/ROADMAP.md): phases P0–P12 with Definitions of Done
+- [Phase overviews](docs/phases/): what each finished phase delivered
 - [Original blueprint](docs/reference/original-blueprint.md): the starting idea
 
 ## Quickstart (any computer)
