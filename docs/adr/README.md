@@ -14,6 +14,7 @@ rewritten after acceptance; supersede it with a new ADR instead.
 | [0007](0007-zero-cost-policy.md) | $0 policy with two-gate paid paths |
 | [0008](0008-single-node-a1-cluster.md) | Single-node cluster on the reduced A1 allowance (amends 0002) |
 | [0009](0009-repository-layout-and-branches.md) | Repository layout and branch lifecycle |
+| [0010](0010-oci-trial-burst-layer.md) | OCI Free Trial credits are a disposable burst layer |
 
 ## Template
 
