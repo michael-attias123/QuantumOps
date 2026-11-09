@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+# Install the command-line tools QuantumOps needs on this computer; skip anything already present.
+#   Usage: tools.sh [--dry-run] [--admin]
+#   --admin also installs OpenTofu and the OCI CLI (needed on the one computer that runs `tofu apply`).
+# Supported: Ubuntu/Debian (incl. WSL2) and macOS with Homebrew.
+# shellcheck source=lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+parse_common_args "$@"
+
+ADMIN=0
+for a in "${ARGS[@]+"${ARGS[@]}"}"; do
+  case "$a" in
+    --admin) ADMIN=1 ;;
+    *) die "unknown argument: $a" ;;
+  esac
+done
+
+TOFU_MIN="1.10.0"
+OS="$(uname -s)"
+ARCH="$(uname -m)"
+case "$ARCH" in
+  x86_64 | amd64) KARCH=amd64 ;;
+  aarch64 | arm64) KARCH=arm64 ;;
+  *) die "unsupported CPU architecture: $ARCH" ;;
+esac
+
+SUDO=""
+if [[ "$OS" == "Linux" && "$(id -u)" != "0" ]]; then SUDO="sudo"; fi
+
+# Download an installer to a temp file first (never pipe the network straight into a shell).
+fetch() {
+  local url="$1" out
+  out="$(mktemp)"
+  curl -fsSL --proto '=https' --tlsv1.2 "$url" -o "$out"
+  printf '%s\n' "$out"
+}
+
+version_ge() { [[ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" == "$2" ]]; }
+
+install_base() {
+  local missing=()
+  local c
+  for c in git make curl jq; do have "$c" || missing+=("$c"); done
+  if ((${#missing[@]} == 0)); then
+    ok "git, make, curl, jq"
+    return
+  fi
+  info "installing ${missing[*]}"
+  if [[ "$OS" == "Darwin" ]]; then
+    need brew
+    run brew install "${missing[@]}"
+  else
+    run $SUDO apt-get update -y
+    run $SUDO apt-get install -y "${missing[@]}"
+  fi
+}
+
+install_uv() {
+  if have uv; then
+    ok "uv $(uv --version | awk '{print $2}')"
+    return
+  fi
+  info "installing uv"
+  if [[ "$QOPS_DRY_RUN" == "1" ]]; then
+    run sh "<https://astral.sh/uv/install.sh>"
+  else
+    sh "$(fetch https://astral.sh/uv/install.sh)"
+  fi
+  warn "open a new shell (or: source ~/.local/bin/env) so 'uv' is on PATH"
+}
+
+install_kubectl() {
+  if have kubectl; then
+    ok "kubectl $(kubectl version --client -o json 2>/dev/null | jq -r .clientVersion.gitVersion)"
+    return
+  fi
+  info "installing kubectl"
+  if [[ "$OS" == "Darwin" ]]; then
+    run brew install kubectl
+    return
+  fi
+  local ver bin
+  ver="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
+  if [[ "$QOPS_DRY_RUN" == "1" ]]; then
+    run install kubectl "$ver/$KARCH" /usr/local/bin/kubectl
+    return
+  fi
+  bin="$(fetch "https://dl.k8s.io/release/$ver/bin/linux/$KARCH/kubectl")"
+  echo "$(curl -fsSL "https://dl.k8s.io/release/$ver/bin/linux/$KARCH/kubectl.sha256")  $bin" | sha256sum --check --quiet
+  $SUDO install -m 0755 "$bin" /usr/local/bin/kubectl
+}
+
+install_tailscale() {
+  local ts
+  ts="$(ts_cmd)"
+  if [[ -n "$ts" ]]; then
+    ok "tailscale $("$ts" version | head -n1)"
+    return
+  fi
+  if is_wsl; then
+    warn "WSL2: install Tailscale on Windows (https://tailscale.com/download/windows); WSL shares its connection and CLI"
+    return
+  fi
+  info "installing tailscale"
+  if [[ "$OS" == "Darwin" ]]; then
+    run brew install --cask tailscale
+  elif [[ "$QOPS_DRY_RUN" == "1" ]]; then
+    run sh "<https://tailscale.com/install.sh>"
+  else
+    sh "$(fetch https://tailscale.com/install.sh)"
+  fi
+}
+
+install_tofu() {
+  if have tofu; then
+    local v
+    v="$(tofu version -json 2>/dev/null | jq -r .terraform_version)"
+    if version_ge "$v" "$TOFU_MIN"; then
+      ok "tofu $v"
+      return
+    fi
+    warn "tofu $v is older than $TOFU_MIN; upgrading"
+  fi
+  info "installing OpenTofu"
+  if [[ "$OS" == "Darwin" ]]; then
+    run brew install opentofu
+  elif [[ "$QOPS_DRY_RUN" == "1" ]]; then
+    run sh "<https://get.opentofu.org/install-opentofu.sh>" --install-method deb
+  else
+    $SUDO sh "$(fetch https://get.opentofu.org/install-opentofu.sh)" --install-method deb
+  fi
+}
+
+install_oci_cli() {
+  if have oci; then
+    ok "oci $(oci --version)"
+    return
+  fi
+  info "installing the OCI CLI (as a uv tool)"
+  need uv
+  run uv tool install oci-cli
+}
+
+ssh_key() {
+  local key="$HOME/.ssh/qops_oci"
+  if [[ -f "$key" ]]; then
+    ok "SSH break-glass key $key"
+    return
+  fi
+  info "creating SSH break-glass key $key"
+  run mkdir -p "$HOME/.ssh"
+  run ssh-keygen -q -t ed25519 -N "" -C qops-oci -f "$key"
+}
+
+info "QuantumOps tools for $(os_name) ($KARCH)$([[ $ADMIN == 1 ]] && echo ', admin computer')"
+install_base
+install_uv
+install_kubectl
+install_tailscale
+if [[ "$ADMIN" == "1" ]]; then
+  install_tofu
+  install_oci_cli
+  ssh_key
+fi
+info "done. Next: 'tailscale up' (browser login), then on the admin computer: make oci-login"

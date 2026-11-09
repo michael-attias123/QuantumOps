@@ -6,11 +6,12 @@ YAMLLINT_CONFIG := .github/linters/yamllint.yml
 sync: ## Install the workspace and dev tools (uses uv.lock)
 	$(UV) sync --locked
 
-lint: ## Ruff lint + format check, mypy (strict), yamllint
+lint: ## Ruff lint + format check, mypy (strict), yamllint, shellcheck
 	$(UV) run ruff check .
 	$(UV) run ruff format --check .
 	$(UV) run mypy
 	$(UV) run yamllint -c $(YAMLLINT_CONFIG) --strict .
+	$(UV) run shellcheck -x -P SCRIPTDIR infra/bootstrap/*.sh
 
 fmt: ## Auto-fix lint issues and format code
 	$(UV) run ruff check --fix .

@@ -487,12 +487,13 @@ deploy/                                    P3  everything Argo CD syncs
   envs/{oci,ci}/                           P3  oci = the real cluster, ci = kind in GitHub Actions
 infra/                                         OpenTofu
   ci/kind-config.yaml                      ✅ kind cluster for e2e tests (P6)
+  bootstrap/                               ✅ one-time scripts before P2: tools, OCI login/budgets/bucket/S3 key, report
   oci/                                     P2  VCN, 1× A1 VM, k3s cloud-init, Tailscale, KMS
   github/                                  P3  repo settings, branch protection
   supabase/                                P5  Supabase project
 tests/                                     ✅ repo-wide guards: architecture, algorithm contract, pin matrix
 docs/                                      ✅ README index, ARCHITECTURE, ROADMAP, adr/, phases/, reference/; runbooks/ P2
-make/                                      ✅ make includes: dev.mk, verify.mk; infra.mk P2, deploy.mk P3 …
+make/                                      ✅ make includes: dev.mk, verify.mk, bootstrap.mk; infra.mk P2, deploy.mk P3 …
 .github/                                   ✅ workflows/, CONTRIBUTING.md, renovate.json, linters/
 Makefile  pyproject.toml  uv.lock  README.md
 ```
