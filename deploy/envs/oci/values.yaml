@@ -3,4 +3,4 @@
 qops:
   image:
     # Bumped automatically by .github/workflows/images.yml after each image build on main.
-    tag: main
+    tag: sha-c5a1979
