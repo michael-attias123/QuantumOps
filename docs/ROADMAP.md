@@ -21,7 +21,7 @@ checked, with each check scripted as `make verify-pN`. The design behind each it
 | P1 | [L0 contract + local runtime](phases/p1-overview.md) | L0, L1, L3 (in-process) | P0 | ✅ |
 | P2 | [Cloud cluster (OCI Always Free + Tailscale)](phases/p2-overview.md) | platform | P0 | ✅ |
 | T | [OCI trial GPU spike](adr/0010-oci-trial-burst-layer.md) (optional, ends on trial day 27) | L3 | P2 | dropped |
-| P3 | GitOps bootstrap | platform | P2 | ☐ |
+| P3 | [GitOps bootstrap](phases/p3-overview.md) | platform | P2 | ✅ |
 | P4 | Vault + ESO | platform | P3 | ☐ |
 | P5 | State layer (Supabase) | platform | P4 | ☐ |
 | P6 | Event-driven pipeline, one-shot (emulator) | L1, L2 | P1, P5 | ☐ |
@@ -147,10 +147,10 @@ Build
 - [x] [ADR 0012](adr/0012-gitops-bootstrap.md), [runbook](runbooks/gitops.md); `make deploy-check` (helm lint + kubeconform) in CI; `make verify-p3`
 
 Definition of Done
-- [ ] On a freshly rebuilt cluster, `make bootstrap` → all apps Synced/Healthy with no manual kubectl
-- [ ] A Git change to a value shows up in the cluster
-- [ ] An image built on `main` gets its tag bumped and deployed automatically
-- [ ] The Argo CD UI opens from any tailnet computer and from nowhere else
+- [x] On a freshly rebuilt cluster, `make bootstrap` → all apps Synced/Healthy with no manual kubectl
+- [x] A Git change to a value shows up in the cluster
+- [x] An image built on `main` gets its tag bumped and deployed automatically
+- [x] The Argo CD UI opens from any tailnet computer and from nowhere else
 
 Cost: $0.
 
