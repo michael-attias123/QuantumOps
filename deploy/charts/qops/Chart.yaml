@@ -1,0 +1,5 @@
+apiVersion: v2
+name: qops
+description: QuantumOps workloads. P3 holds the runtime smoke test; P6 adds the CRD, workflows, tracker and emulator.
+type: application
+version: 0.1.0

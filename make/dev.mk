@@ -11,7 +11,7 @@ lint: ## Ruff lint + format check, mypy (strict), yamllint, shellcheck
 	$(UV) run ruff format --check .
 	$(UV) run mypy
 	$(UV) run yamllint -c $(YAMLLINT_CONFIG) --strict .
-	$(UV) run shellcheck -x -P SCRIPTDIR infra/bootstrap/*.sh infra/scripts/*.sh
+	$(UV) run shellcheck -x -P SCRIPTDIR infra/bootstrap/*.sh infra/scripts/*.sh deploy/bootstrap/scripts/*.sh
 
 fmt: ## Auto-fix lint issues and format code
 	$(UV) run ruff check --fix .

@@ -1,0 +1,15 @@
+# kind in GitHub Actions (P6 e2e). No tailnet there: the Tailscale operator and the Argo CD ingress are off.
+
+apps:
+  tailscale-operator:
+    enabled: false
+  argocd-access:
+    enabled: false
+
+qops:
+  image:
+    repository: qops-runtime
+    tag: ci
+    pullPolicy: Never
+  smoke:
+    enabled: false

@@ -139,6 +139,61 @@ install_tofu() {
   fi
 }
 
+# Helm goes into ~/.local/bin (no sudo needed); `make bootstrap` uses it to install Argo CD the first time.
+install_helm() {
+  if have helm; then
+    ok "helm $(helm version --short 2>/dev/null)"
+    return
+  fi
+  info "installing helm"
+  if [[ "$OS" == "Darwin" ]]; then
+    run brew install helm
+    return
+  fi
+  local ver tgz dir
+  ver="$(curl -fsSL https://get.helm.sh/helm-latest-version)"
+  if [[ "$QOPS_DRY_RUN" == "1" ]]; then
+    run install helm "$ver/$KARCH" "$HOME/.local/bin/helm"
+    return
+  fi
+  tgz="$(fetch "https://get.helm.sh/helm-$ver-linux-$KARCH.tar.gz")"
+  echo "$(curl -fsSL "https://get.helm.sh/helm-$ver-linux-$KARCH.tar.gz.sha256sum" | awk '{print $1}')  $tgz" |
+    sha256sum --check --quiet
+  dir="$(mktemp -d)"
+  tar -xzf "$tgz" -C "$dir"
+  mkdir -p "$HOME/.local/bin"
+  install -m 0755 "$dir/linux-$KARCH/helm" "$HOME/.local/bin/helm"
+  rm -rf "$dir" "$tgz"
+  have helm || warn "add ~/.local/bin to PATH (open a new shell) so 'helm' is found"
+}
+
+# kubeconform validates rendered manifests (`make deploy-check`). Pinned; into ~/.local/bin.
+KUBECONFORM_VERSION="v0.7.0"
+install_kubeconform() {
+  if have kubeconform; then
+    ok "kubeconform $(kubeconform -v 2>/dev/null)"
+    return
+  fi
+  info "installing kubeconform $KUBECONFORM_VERSION"
+  if [[ "$OS" == "Darwin" ]]; then
+    run brew install kubeconform
+    return
+  fi
+  local base="https://github.com/yannh/kubeconform/releases/download/$KUBECONFORM_VERSION" name tgz dir
+  name="kubeconform-linux-$KARCH.tar.gz"
+  if [[ "$QOPS_DRY_RUN" == "1" ]]; then
+    run install kubeconform "$KUBECONFORM_VERSION/$KARCH" "$HOME/.local/bin/kubeconform"
+    return
+  fi
+  tgz="$(fetch "$base/$name")"
+  echo "$(curl -fsSL "$base/CHECKSUMS" | awk -v n="$name" '$2 == n {print $1}')  $tgz" | sha256sum --check --quiet
+  dir="$(mktemp -d)"
+  tar -xzf "$tgz" -C "$dir"
+  mkdir -p "$HOME/.local/bin"
+  install -m 0755 "$dir/kubeconform" "$HOME/.local/bin/kubeconform"
+  rm -rf "$dir" "$tgz"
+}
+
 install_oci_cli() {
   if have oci; then
     ok "oci $(oci --version)"
@@ -167,6 +222,8 @@ install_kubectl
 install_tailscale
 if [[ "$ADMIN" == "1" ]]; then
   install_tofu
+  install_helm
+  install_kubeconform
   install_oci_cli
   ssh_key
 fi

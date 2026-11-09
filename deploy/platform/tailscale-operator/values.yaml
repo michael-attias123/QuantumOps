@@ -1,0 +1,22 @@
+# Tailscale Kubernetes operator: exposes cluster services on the tailnet (HTTPS at <name>.<tailnet>.ts.net).
+# OAuth credentials: the tailscale/operator-oauth Secret, created by `make bootstrap` from OpenTofu's output
+# (infra/oci tailscale_oauth_client). P4 moves it to Vault + External Secrets.
+
+operatorConfig:
+  hostname: qops-k8s-operator
+  defaultTags:
+    - "tag:k8s-operator"
+  resources:
+    requests: { cpu: 10m, memory: 48Mi }
+    limits: { memory: 192Mi }
+
+proxyConfig:
+  defaultTags: "tag:k8s"
+
+ingressClass:
+  enabled: true
+  name: tailscale
+
+# Kubernetes API access stays on the node's tailnet IP (P2); no extra API proxy.
+apiServerProxyConfig:
+  mode: "false"

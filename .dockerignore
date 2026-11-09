@@ -1,0 +1,13 @@
+# Build context for packages/*/Dockerfile (built from the repo root). Only sources go in.
+.git
+.venv
+.cache
+.qops
+**/__pycache__
+**/*.pyc
+**/.terraform
+docs
+infra
+deploy
+tests
+packages/*/tests

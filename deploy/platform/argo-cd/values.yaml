@@ -1,0 +1,42 @@
+# Argo CD on a 2 OCPU / 12 GB single node (ADR 0008): one replica each, no Dex, no notifications,
+# no ApplicationSet controller. Used twice with the same chart version: by `make bootstrap` (helm install)
+# and by the argo-cd Application, which then manages Argo CD from Git.
+
+configs:
+  params:
+    # TLS ends at the Tailscale ingress proxy (HTTPS with a ts.net certificate); the hop inside the cluster is HTTP.
+    server.insecure: true
+  cm:
+    # Local admin user only; there's no SSO in this single-user setup.
+    admin.enabled: true
+    exec.enabled: false
+    statusbadge.enabled: false
+
+dex:
+  enabled: false
+
+notifications:
+  enabled: false
+
+applicationSet:
+  replicas: 0
+
+controller:
+  resources:
+    requests: { cpu: 100m, memory: 384Mi }
+    limits: { memory: 1Gi }
+
+repoServer:
+  resources:
+    requests: { cpu: 50m, memory: 192Mi }
+    limits: { memory: 512Mi }
+
+server:
+  resources:
+    requests: { cpu: 25m, memory: 96Mi }
+    limits: { memory: 256Mi }
+
+redis:
+  resources:
+    requests: { cpu: 25m, memory: 48Mi }
+    limits: { memory: 128Mi }

@@ -1,0 +1,58 @@
+{{- range $name, $app := .Values.apps }}
+{{- if $app.enabled }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ $name }}
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ $app.wave | quote }}
+  {{- if ne (toString $app.prune) "false" }}
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  {{- end }}
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ $app.namespace }}
+  {{- if $app.chart }}
+  sources:
+    - repoURL: {{ $app.chart.repo }}
+      chart: {{ $app.chart.name }}
+      targetRevision: {{ $app.chart.version | quote }}
+      helm:
+        releaseName: {{ $app.releaseName | default $name }}
+        valueFiles:
+          - $values/{{ $app.valuesFile }}
+    - repoURL: {{ $.Values.repoURL }}
+      targetRevision: {{ $.Values.targetRevision }}
+      ref: values
+  {{- else }}
+  source:
+    repoURL: {{ $.Values.repoURL }}
+    targetRevision: {{ $.Values.targetRevision }}
+    path: {{ $app.path }}
+    {{- with $app.valuesKey }}
+    helm:
+      releaseName: {{ $name }}
+      valuesObject:
+        {{- toYaml (index $.Values .) | nindent 8 }}
+    {{- end }}
+  {{- end }}
+  syncPolicy:
+    automated:
+      prune: {{ ne (toString $app.prune) "false" }}
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+{{- end }}
+{{- end }}

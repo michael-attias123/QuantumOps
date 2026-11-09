@@ -1,0 +1,22 @@
+# Namespaces for the platform (sync wave -2). Pod Security Admission: restricted for our own workloads,
+# baseline where upstream components need more (the Tailscale proxies need NET_ADMIN).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tailscale
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: qops
+  labels:
+    pod-security.kubernetes.io/enforce: restricted

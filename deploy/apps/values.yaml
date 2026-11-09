@@ -1,0 +1,59 @@
+# Defaults for every environment. deploy/envs/<env>/values.yaml overrides them.
+#
+# Each entry in `apps` becomes one Argo CD Application:
+#   wave         sync wave (ARCHITECTURE §13: -2 namespaces/CRDs ... 3 experiments)
+#   namespace    where its resources go
+#   chart        {repo, name, version}: an upstream Helm chart, plus `valuesFile` from this repo
+#   path         a directory in this repo (plain manifests, or a Helm chart)
+#   valuesKey    with `path`: pass this top-level key of the env values to the chart as Helm values
+#   prune        delete resources removed from Git (default true; false for Argo CD itself)
+
+repoURL: https://github.com/michael-attias123/QuantumOps.git
+targetRevision: main
+
+apps:
+  namespaces:
+    enabled: true
+    wave: -2
+    namespace: default
+    path: deploy/platform/namespaces
+
+  argo-cd:
+    enabled: true
+    wave: -1
+    namespace: argocd
+    releaseName: argocd
+    chart:
+      repo: https://argoproj.github.io/argo-helm
+      name: argo-cd
+      version: 10.17.1
+    valuesFile: deploy/platform/argo-cd/values.yaml
+    # Argo CD manages its own release; never let a sync delete Argo CD's own resources.
+    prune: false
+
+  tailscale-operator:
+    enabled: true
+    wave: 0
+    namespace: tailscale
+    releaseName: tailscale-operator
+    chart:
+      repo: https://pkgs.tailscale.com/helmcharts
+      name: tailscale-operator
+      version: 1.104.4
+    valuesFile: deploy/platform/tailscale-operator/values.yaml
+
+  argocd-access:
+    enabled: true
+    wave: 1
+    namespace: argocd
+    path: deploy/platform/argocd-access
+
+  qops:
+    enabled: true
+    wave: 2
+    namespace: qops
+    path: deploy/charts/qops
+    valuesKey: qops
+
+# Values for deploy/charts/qops (see that chart's values.yaml for defaults).
+qops: {}

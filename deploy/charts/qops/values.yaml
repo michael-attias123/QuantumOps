@@ -1,0 +1,15 @@
+image:
+  repository: ghcr.io/michael-attias123/qops-runtime
+  # Set per environment in deploy/envs/<env>/values.yaml; images.yml bumps it for oci.
+  tag: main
+  pullPolicy: IfNotPresent
+
+# A daily L0 -> L1 run on the cluster: GHZ benchmark on the local Aer simulator, through the same `qops` CLI
+# researchers use. It proves the image builds, starts and computes on arm64.
+smoke:
+  enabled: true
+  schedule: "17 3 * * *"
+  algorithm: research/algorithms/ghz_benchmark
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 1Gi }
