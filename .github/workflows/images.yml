@@ -130,11 +130,13 @@ jobs:
     needs: publish
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
+      # Pushes with the deploy key from infra/github: the main ruleset lets deploy keys bypass "PRs only".
       - uses: actions/checkout@v4
         with:
           ref: main
+          ssh-key: ${{ secrets.IMAGE_BUMP_DEPLOY_KEY }}
       - name: Set qops.image.tag
         env:
           TAG: ${{ needs.publish.outputs.tag }}
@@ -147,5 +149,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "deploy: qops-runtime $TAG"
-          # Commits made with GITHUB_TOKEN don't start new workflow runs, so this can't loop.
+          # This push starts ci.yml on main (harmless), but not images.yml: deploy/ isn't in its paths, so no loop.
           git push origin HEAD:main

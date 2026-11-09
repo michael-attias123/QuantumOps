@@ -24,11 +24,13 @@ hand edits, and expose the Argo CD UI only on the tailnet. The node has 12 GB, s
   so there's no manual step. The Argo CD UI is an Ingress of class `tailscale` (HTTPS with a ts.net certificate)
   in front of a ClusterIP service. No LoadBalancer, no NodePort, and no public ingress controller (Traefik is off).
 - **Images:** `images.yml` builds on native amd64 and arm64 runners, publishes one multi-arch `sha-<short>` tag to
-  GHCR, and the GitHub Actions bot commits that tag into `deploy/envs/oci/values.yaml`. Argo CD deploys it.
-  Commits made with `GITHUB_TOKEN` don't trigger workflows, so this can't loop.
+  GHCR, and the bump job commits that tag into `deploy/envs/oci/values.yaml`. Argo CD deploys it.
+  The job pushes with a **deploy key** created by `infra/github`. A personal account's ruleset can't exempt the
+  GitHub Actions app (GitHub answers 422), but it can exempt deploy keys. The push runs `ci.yml`, not
+  `images.yml` (`deploy/` isn't in its paths), so it can't loop.
 - **Branch protection as code** (`infra/github`):
   - `main` requires PRs and green CI.
-  - Only the GitHub Actions app may bypass the rules, for those tag-bump commits.
+  - Only deploy keys may bypass the rules; the only deploy key is the tag-bump key.
 
 ## Consequences
 - A rebuilt cluster comes back with `make infra-rebuild && make infra-apply && make kubeconfig && make bootstrap`.
