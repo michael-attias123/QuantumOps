@@ -4,7 +4,7 @@
 #
 #   login       browser login; creates the API key pair and ~/.oci/config (`oci setup bootstrap`)
 #   limits      prints Ampere A1 and GPU A10 limits and an estimated trial end date
-#   budgets     $1 Always Free alarm (1%) + $300 trial-credit budget with alerts at $50/$150/$250
+#   budgets     one $1 budget (OCI allows one per compartment) with alerts at 1% (any spend) and at $50/$150/$250 (trial credits)
 #   bucket      versioned OpenTofu state bucket (default qops-tofu-state)
 #   secret-key  S3-compatible key for the state bucket -> ~/.config/qops/oci.env (0600, never printed)
 #   all         limits, budgets, bucket, secret-key (default)
@@ -27,8 +27,7 @@ done
 BUCKET="${QOPS_STATE_BUCKET:-qops-tofu-state}"
 SECRET_KEY_NAME="qops-tofu"
 OCI_ENV="$QOPS_CONFIG_DIR/oci.env"
-BUDGET_FREE="qops-always-free"
-BUDGET_TRIAL="qops-trial-credits"
+BUDGET_NAME="qops-always-free"
 
 ocij() { oci --profile "$OCI_CLI_PROFILE" --output json "$@"; }
 
@@ -126,9 +125,10 @@ ensure_alert() {
 step_budgets() {
   EMAIL="${QOPS_ALERT_EMAIL:-$(ocij iam user get --user-id "$USER_OCID" 2>/dev/null | jq -r '.data.email // empty')}"
   [[ -n "$EMAIL" ]] || die "no email on your OCI user. Rerun with QOPS_ALERT_EMAIL=you@example.com"
-  ensure_budget "$BUDGET_FREE" 1 "Always Free guard: any spend at all is a surprise"
+  # OCI allows only one budget per target compartment, so every alert hangs off the same $1 budget.
+  # Absolute thresholds above the budget amount are accepted; they track Free Trial credit spend (ADR 0010).
+  ensure_budget "$BUDGET_NAME" 1 "Always Free guard: any spend at all is a surprise"
   ensure_alert "$BUDGET_ID" any-spend PERCENTAGE 1
-  ensure_budget "$BUDGET_TRIAL" 300 "Free Trial credits (ADR 0010); delete after the trial"
   ensure_alert "$BUDGET_ID" credits-50 ABSOLUTE 50
   ensure_alert "$BUDGET_ID" credits-150 ABSOLUTE 150
   ensure_alert "$BUDGET_ID" credits-250 ABSOLUTE 250

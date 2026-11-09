@@ -11,7 +11,7 @@ REGION="$(oci_cfg region)"
 TENANCY="$(oci_cfg tenancy)"
 BUCKET="${QOPS_STATE_BUCKET:-qops-tofu-state}"
 OCI_OK=0
-A1="?" GPU="?" NAMESPACE="?" TRIAL="?" BUDGETS=0 VERSIONED=0
+A1="?" GPU="?" NAMESPACE="?" TRIAL="?" ALERTS=0 VERSIONED=0
 if have oci && have jq && [[ -n "$TENANCY" ]] &&
   NAMESPACE="$(oci --profile "$OCI_CLI_PROFILE" os ns get 2>/dev/null | jq -r .data)"; then
   OCI_OK=1
@@ -27,8 +27,12 @@ if have oci && have jq && [[ -n "$TENANCY" ]] &&
     TRIAL="$(date -u -d "${created%%T*} + 30 days" +%F 2>/dev/null ||
       date -u -j -v+30d -f %F "${created%%T*}" +%F) (estimate)"
   fi
-  BUDGETS="$(oci --profile "$OCI_CLI_PROFILE" budgets budget budget list --compartment-id "$TENANCY" --all 2>/dev/null |
-    jq '[.data[]? | select(."display-name" | startswith("qops-"))] | length')"
+  budget_id="$(oci --profile "$OCI_CLI_PROFILE" budgets budget budget list --compartment-id "$TENANCY" --all 2>/dev/null |
+    jq -r '.data[]? | select(."display-name" == "qops-always-free") | .id' | head -n1)"
+  if [[ -n "$budget_id" ]]; then
+    ALERTS="$(oci --profile "$OCI_CLI_PROFILE" budgets budget alert-rule list --budget-id "$budget_id" --all 2>/dev/null |
+      jq '[.data[]? | select(."display-name" | IN("any-spend", "credits-50", "credits-150", "credits-250"))] | length')"
+  fi
   [[ "$(oci --profile "$OCI_CLI_PROFILE" os bucket get --namespace-name "$NAMESPACE" --bucket-name "$BUCKET" \
     2>/dev/null | jq -r '.data.versioning // empty')" == "Enabled" ]] && VERSIONED=1
 else
@@ -56,7 +60,7 @@ Object Storage namespace:   $NAMESPACE
 State bucket:               $BUCKET
 Tailnet DNS name:           $TAILNET
 This computer's OS:         $(os_name) ($(uname -m))
-Checklist:                  $(mark yes "$OCI_OK") OCI API login works  $(mark test "$BUDGETS" -ge 2) budgets ($BUDGETS/2)  $(mark yes "$VERSIONED") bucket versioned
+Checklist:                  $(mark yes "$OCI_OK") OCI API login works  $(mark test "$ALERTS" -ge 4) budget alerts ($ALERTS/4)  $(mark yes "$VERSIONED") bucket versioned
                             $(mark nonempty "$QOPS_CONFIG_DIR/oci.env" AWS_SECRET_ACCESS_KEY) S3 key saved  $(mark nonempty "$QOPS_CONFIG_DIR/tailscale.env" TAILSCALE_API_KEY) Tailscale token saved
                             $(mark yes "$TS_RUNNING") on the tailnet  $(mark yes "$TS_HTTPS") HTTPS certificates  $(mark test -f "$HOME/.ssh/qops_oci.pub") SSH key
 Tools:                      tofu $(have tofu && tofu version -json 2>/dev/null | jq -r .terraform_version || echo "not installed")
