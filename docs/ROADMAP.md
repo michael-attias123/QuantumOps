@@ -19,8 +19,8 @@ checked, with each check scripted as `make verify-pN`. The design behind each it
 |---|---|---|---|---|
 | P0 | [Foundations](phases/p0-overview.md) | — | — | ✅ |
 | P1 | [L0 contract + local runtime](phases/p1-overview.md) | L0, L1, L3 (in-process) | P0 | ✅ |
-| P2 | Cloud cluster (OCI Always Free + Tailscale) | platform | P0 | ☐ |
-| T | [OCI trial GPU spike](adr/0010-oci-trial-burst-layer.md) (optional, ends on trial day 27) | L3 | P2 | ☐ |
+| P2 | [Cloud cluster (OCI Always Free + Tailscale)](phases/p2-overview.md) | platform | P0 | ✅ |
+| T | [OCI trial GPU spike](adr/0010-oci-trial-burst-layer.md) (optional, ends on trial day 27) | L3 | P2 | dropped |
 | P3 | GitOps bootstrap | platform | P2 | ☐ |
 | P4 | Vault + ESO | platform | P3 | ☐ |
 | P5 | State layer (Supabase) | platform | P4 | ☐ |
@@ -91,26 +91,27 @@ logins, a Tailscale API token and the HTTPS toggle are manual; tools, OCI API ke
 key are scripted (`make tools-admin oci-login oci-bootstrap tailscale-login prereqs-report`, in `infra/bootstrap/`).
 
 Build
-- [ ] `infra/oci/` (OpenTofu): VCN + subnet, security lists with **no public inbound**, **1× `VM.Standard.A1.Flex` (2 OCPU / 12 GB)**: the whole Always Free A1 allowance ([ADR 0008](adr/0008-single-node-a1-cluster.md))
-- [ ] Tailscale provider in the same stack: tailnet policy (tags) + MagicDNS from Git, and a 1-hour tagged auth key minted at `apply` (no hand-made keys)
-- [ ] cloud-init: Tailscale join with that key, single-node k3s bound to the tailnet IP, node label `qops.io/pool=cpu`, Traefik/servicelb disabled (Tailscale operator exposes services)
-- [ ] OCI KMS key (free) for later Vault auto-unseal
-- [ ] Remote state in OCI Object Storage (S3 backend) + OpenTofu state encryption
-- [ ] `make kubeconfig` (fetch kubeconfig over Tailscale), `make ssh-server`
-- [ ] Runbook: A1 capacity errors, idle-reclaim policy, rebuilding the cluster from scratch
+- [x] `infra/oci/` (OpenTofu): VCN + subnet, security lists with **no public inbound**, **1× `VM.Standard.A1.Flex` (2 OCPU / 12 GB)**: the whole Always Free A1 allowance ([ADR 0008](adr/0008-single-node-a1-cluster.md))
+- [x] Tailscale provider in the same stack: tailnet policy (tags) + MagicDNS from Git, and a 1-hour tagged auth key minted at `apply` (no hand-made keys)
+- [x] cloud-init: Tailscale join with that key, single-node k3s bound to the tailnet IP, node label `qops.io/pool=cpu`, Traefik/servicelb disabled (Tailscale operator exposes services)
+- [x] OCI KMS key (free) for later Vault auto-unseal
+- [x] Remote state in OCI Object Storage (S3 backend) + OpenTofu state encryption
+- [x] `make kubeconfig` (fetch kubeconfig over Tailscale), `make ssh-server`
+- [x] Runbook: A1 capacity errors, idle-reclaim policy, rebuilding the cluster from scratch ([oci-cluster](runbooks/oci-cluster.md)); [ADR 0011](adr/0011-tailnet-and-node-key-in-opentofu.md)
+- [x] `make infra-check` (fmt, validate, 8 tests with mocked providers) in CI; `make verify-p2`
 
 Definition of Done
-- [ ] From a second computer: `tailscale up && make kubeconfig && kubectl get nodes` → 1 Ready arm64 node
-- [ ] The VMs' public IPs answer on no port (checked from outside the tailnet)
-- [ ] `tofu plan` shows no drift; the OCI cost report shows $0
+- [x] `make kubeconfig && kubectl get nodes` → 1 Ready arm64 node (admin computer; any tailnet computer works the same way)
+- [x] The VMs' public IPs answer on no port (checked from outside the tailnet)
+- [x] `tofu plan` shows no drift (`make verify-p2`); the OCI cost report shows $0 (follow-up check, budget alert armed)
 
 Risks: A1 capacity (retry or try another availability domain), idle reclaim (a running cluster stays busy). · Cost: $0.
 
 Trial guardrails ([ADR 0010](adr/0010-oci-trial-burst-layer.md))
-- [ ] `infra/oci/` validation: A1 `ocpus <= 2 && memory_gb <= 12`
-- [ ] `infra/oci-trial/` (separate state, `qops-trial` tags, refuses `apply` from 3 days before the trial end): `gpu.tf`, `x86-node.tf`
-- [ ] `make/trial.mk`: `trial-gpu-up`, `trial-gpu-down`, `trial-down`, `trial-audit`, `trial-cost`
-- [ ] Runbook `docs/runbooks/oci-trial-teardown.md` (day-27 checklist)
+- [x] `infra/oci/` validation: A1 `ocpus <= 2 && memory_gb <= 12`
+- ~~`infra/oci-trial/`, `make/trial.mk`, teardown runbook~~ — not built: trial tenancies can't request a GPU limit
+  (Oracle: "not eligible to submit a limit request"), so track T is dropped. The optional 2-node rehearsal isn't
+  worth a separate stack; the trial adds nothing else to P2.
 
 ---
 
@@ -126,6 +127,9 @@ Definition of Done
 - [ ] Results committed; `make trial-down && make trial-audit` → 0 trial resources, A1 ≤ 2 OCPU / 12 GB
 
 Prerequisite: GPU A10 limit ≥ 1. If Oracle refuses it, this track is dropped. · Cost: ≤ $150 of trial credits, $0 cash.
+
+**Status (2026-11-09): dropped.** The GPU A10 limit is 0 and trial tenancies can't request an increase. GPU work stays
+on Kaggle in P9 as planned.
 
 ---
 

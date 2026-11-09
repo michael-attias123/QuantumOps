@@ -15,6 +15,7 @@ rewritten after acceptance; supersede it with a new ADR instead.
 | [0008](0008-single-node-a1-cluster.md) | Single-node cluster on the reduced A1 allowance (amends 0002) |
 | [0009](0009-repository-layout-and-branches.md) | Repository layout and branch lifecycle |
 | [0010](0010-oci-trial-burst-layer.md) | OCI Free Trial credits are a disposable burst layer |
+| [0011](0011-tailnet-and-node-key-in-opentofu.md) | Tailnet policy and node auth key are managed by OpenTofu |
 
 ## Template
 

@@ -1,0 +1,63 @@
+#cloud-config
+# First boot of a QuantumOps node: join the tailnet, then install single-node k3s bound to the tailnet IP.
+# Rendered by OpenTofu (infra/oci/node.tf). Progress log on the node: /var/log/qops-bootstrap.log
+hostname: ${hostname}
+package_update: true
+packages:
+  - curl
+  - jq
+  - open-iscsi
+
+write_files:
+  - path: /usr/local/sbin/qops-bootstrap
+    permissions: "0700"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      exec >>/var/log/qops-bootstrap.log 2>&1
+      echo "== $(date -Is) qops bootstrap start"
+
+      # Oracle's Ubuntu images ship iptables rules that reject everything except SSH, which breaks k3s
+      # pod networking. The VCN security list (no inbound rules) is the boundary instead.
+      iptables -P INPUT ACCEPT
+      iptables -P FORWARD ACCEPT
+      iptables -F
+      netfilter-persistent save || true
+
+      if ! command -v tailscale >/dev/null; then
+        curl -fsSL https://tailscale.com/install.sh | sh
+      fi
+      if ! tailscale status >/dev/null 2>&1; then
+        tailscale up --auth-key "$(cat /run/qops/ts-authkey)" --hostname "${hostname}" \
+          --advertise-tags tag:qops-node --ssh
+      fi
+      rm -f /run/qops/ts-authkey
+      TS_IP="$(tailscale ip -4)"
+      echo "tailscale ip: $TS_IP"
+
+      if ! systemctl is-active --quiet k3s; then
+        curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL="${k3s_channel}" sh -s - server \
+          --node-ip "$TS_IP" \
+          --advertise-address "$TS_IP" \
+          --flannel-iface tailscale0 \
+          --tls-san "${hostname}" \
+          --tls-san "${hostname}.${tailnet_dns_name}" \
+          --disable traefik \
+          --disable servicelb \
+          --node-label qops.io/pool=cpu \
+          --write-kubeconfig-mode 0600
+      fi
+      until k3s kubectl get node "${hostname}" >/dev/null 2>&1; do sleep 5; done
+      k3s kubectl wait --for=condition=Ready "node/${hostname}" --timeout=300s
+      echo "== $(date -Is) qops bootstrap done"
+      touch /var/lib/qops-bootstrap.done
+
+  # Kept out of the script so it never lands in a log; /run is tmpfs and is gone after a reboot.
+  - path: /run/qops/ts-authkey
+    permissions: "0600"
+    owner: root:root
+    content: "${tailscale_auth_key}"
+
+runcmd:
+  - [/usr/local/sbin/qops-bootstrap]

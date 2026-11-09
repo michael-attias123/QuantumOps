@@ -18,6 +18,7 @@ build/
 *.tfstate
 *.tfstate.*
 *.tfplan
+# Provider lock files are committed: infra/*/.terraform.lock.hcl
 crash.log
 *.tfvars
 !*.example.tfvars
