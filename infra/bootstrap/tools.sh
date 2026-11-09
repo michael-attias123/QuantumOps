@@ -24,8 +24,16 @@ case "$ARCH" in
   *) die "unsupported CPU architecture: $ARCH" ;;
 esac
 
-SUDO=""
-if [[ "$OS" == "Linux" && "$(id -u)" != "0" ]]; then SUDO="sudo"; fi
+# Run as root. sudo drops environment variables by default, which breaks downloads behind a corporate proxy,
+# so the proxy settings are passed through explicitly.
+PROXY_VARS="http_proxy,https_proxy,no_proxy,HTTP_PROXY,HTTPS_PROXY,NO_PROXY"
+as_root() {
+  if [[ "$OS" != "Linux" || "$(id -u)" == "0" ]]; then
+    "$@"
+  else
+    sudo --preserve-env="$PROXY_VARS" "$@"
+  fi
+}
 
 # Download an installer to a temp file first (never pipe the network straight into a shell).
 fetch() {
@@ -50,8 +58,8 @@ install_base() {
     need brew
     run brew install "${missing[@]}"
   else
-    run $SUDO apt-get update -y
-    run $SUDO apt-get install -y "${missing[@]}"
+    run as_root apt-get update -y
+    run as_root apt-get install -y "${missing[@]}"
   fi
 }
 
@@ -87,7 +95,7 @@ install_kubectl() {
   fi
   bin="$(fetch "https://dl.k8s.io/release/$ver/bin/linux/$KARCH/kubectl")"
   echo "$(curl -fsSL "https://dl.k8s.io/release/$ver/bin/linux/$KARCH/kubectl.sha256")  $bin" | sha256sum --check --quiet
-  $SUDO install -m 0755 "$bin" /usr/local/bin/kubectl
+  as_root install -m 0755 "$bin" /usr/local/bin/kubectl
 }
 
 install_tailscale() {
@@ -127,7 +135,7 @@ install_tofu() {
   elif [[ "$QOPS_DRY_RUN" == "1" ]]; then
     run sh "<https://get.opentofu.org/install-opentofu.sh>" --install-method deb
   else
-    $SUDO sh "$(fetch https://get.opentofu.org/install-opentofu.sh)" --install-method deb
+    as_root sh "$(fetch https://get.opentofu.org/install-opentofu.sh)" --install-method deb
   fi
 }
 

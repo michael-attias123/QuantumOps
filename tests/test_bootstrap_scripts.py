@@ -31,7 +31,7 @@ case "$args" in
   *"iam compartment get"*) echo '{"data":{"time-created":"2026-11-07T10:00:00.000Z"}}' ;;
   *"iam user get"*) echo '{"data":{"email":"me@example.com"}}' ;;
   *"budgets budget budget list"*)
-    if ready; then echo '{"data":[{"display-name":"qops-always-free","id":"b1"},{"display-name":"qops-trial-credits","id":"b2"}]}'
+    if ready; then echo '{"data":[{"display-name":"qops-always-free","id":"b1"}]}'
     else echo '{"data":[]}'; fi ;;
   *"budgets budget alert-rule list"*)
     echo '{"data":[{"display-name":"any-spend"},{"display-name":"credits-50"},{"display-name":"credits-150"},{"display-name":"credits-250"}]}' ;;
@@ -112,7 +112,7 @@ def test_dry_run_on_fresh_tenancy_plans_everything_and_changes_nothing(env: dict
     result = _run("oci.sh", "all", "--dry-run", env=env)
     assert result.returncode == 0, result.stderr
     out = result.stderr
-    assert out.count("[dry-run] oci --profile DEFAULT budgets budget budget create") == 2
+    assert out.count("[dry-run] oci --profile DEFAULT budgets budget budget create") == 1
     assert out.count("budgets budget alert-rule create") == 4
     assert "os bucket create" in out
     assert "--versioning Enabled" in out
@@ -192,7 +192,7 @@ def test_report_lists_values_and_hides_secrets(env: dict[str, str]) -> None:
         "Trial end date:             2026-12-07 (estimate)",
         "Object Storage namespace:   axnamespace",
         "Tailnet DNS name:           tail1234.ts.net",
-        "[x] budgets (2/2)",
+        "[x] budget alerts (4/4)",
         "[x] bucket versioned",
         "[x] S3 key saved",
         "[x] Tailscale token saved",
