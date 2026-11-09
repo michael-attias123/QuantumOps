@@ -1,6 +1,6 @@
 # P2 overview — Cloud cluster (OCI Always Free + Tailscale)
 
-**Status:** cluster running since 2026-11-09. Two DoD items are still open (see the end).
+**Status:** done 2026-11-09 (`make verify-p2` passes). One follow-up: confirm $0 in the cost report after a day.
 
 ## Goal
 An always-on, private, $0 Kubernetes cluster that every computer can reach, with no public ports.
@@ -46,13 +46,13 @@ themselves; for your shell, add the `NO_PROXY` line from the runbook to `~/.bash
 |---|---|
 | `make kubeconfig && kubectl get nodes` → 1 Ready arm64 node | ✅ `qops-node-1 Ready control-plane v1.37.2+k3s1`, arm64, from the admin computer. **Second computer: open** |
 | Public IP answers on no port | ✅ OCI shows the subnet's only security list with **0 ingress rules**, no NSGs; ports 22/80/443/6443/10250 closed from outside the tailnet |
-| `tofu plan` shows no drift | **Open:** 3 resources still to add (KMS key, its policy, emptied default list) — see below |
-| OCI cost report shows $0 | **Open:** check *Billing → Cost Analysis* after a day |
+| `tofu plan` shows no drift | ✅ `make verify-p2` (`plan -detailed-exitcode` clean after the KMS retry apply) |
+| OCI cost report shows $0 | Follow-up: check *Billing → Cost Analysis* on 2026-11-10 (the $1 budget alert emails on any spend) |
 | Offline checks in CI | ✅ `opentofu (infra/oci)`: fmt, validate, 8 tests |
 
 ## What went wrong and how it was fixed
 - **KMS key: "Service Unavailable"** on the first apply. A new vault's endpoint takes a few minutes to start; the retry
-  plan contains just the key and its policy.
+  plan with just the key and its policy (plus the emptied default list) applied cleanly.
 - **`make kubeconfig` asked for a username.** k3s writes `- name: default` for the user, which the rename missed.
   Fixed in `node.sh`.
 - **kubectl got "Forbidden".** The company proxy got the request for the node's 100.x address. The scripts now always
