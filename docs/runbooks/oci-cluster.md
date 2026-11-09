@@ -15,6 +15,7 @@ repo root. Secrets live only in `~/.config/qops/*.env` and `~/.oci/`.
 | Node IP, KMS IDs | `make infra-output` |
 | Offline checks (what CI runs) | `make infra-check` |
 | Phase checks against the live cluster | `make verify-p2` |
+| Install the platform from Git (after a rebuild) | `make bootstrap` ([GitOps runbook](gitops.md)) |
 
 Other computers need only Tailscale, kubectl, git and make: `make kubeconfig` copies the kubeconfig over Tailscale SSH.
 

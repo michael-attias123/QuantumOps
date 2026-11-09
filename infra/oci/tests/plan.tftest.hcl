@@ -71,6 +71,10 @@ run "tailscale_key_is_short_lived_and_tagged" {
     condition     = contains(keys(jsondecode(tailscale_acl.this.acl).tagOwners), "tag:qops-node")
     error_message = "The tailnet policy must define tag:qops-node."
   }
+  assert {
+    condition     = length(tailscale_oauth_client.k8s_operator.tags) == 1 && contains(tailscale_oauth_client.k8s_operator.tags, "tag:k8s-operator")
+    error_message = "The operator OAuth client must be tagged tag:k8s-operator only."
+  }
 }
 
 run "cloud_init_installs_k3s_on_the_tailnet" {

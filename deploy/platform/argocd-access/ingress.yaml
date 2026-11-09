@@ -1,0 +1,17 @@
+# The Argo CD UI at https://argocd.<tailnet>.ts.net, reachable only from the tailnet.
+# The Tailscale operator runs a small proxy (a tag:k8s device named "argocd") with a ts.net certificate.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: argocd-server
+      port:
+        number: 80
+  tls:
+    - hosts:
+        - argocd

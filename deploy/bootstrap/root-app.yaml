@@ -1,0 +1,24 @@
+# The one Application applied by hand (by `make bootstrap`). It renders deploy/apps for the oci environment;
+# from then on, everything in the cluster comes from Git.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  source:
+    repoURL: https://github.com/michael-attias123/QuantumOps.git
+    targetRevision: main
+    path: deploy/apps
+    helm:
+      releaseName: root
+      valueFiles:
+        - ../envs/oci/values.yaml
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

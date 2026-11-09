@@ -5,7 +5,7 @@ NODE_SH := bash infra/scripts/node.sh
 
 .PHONY: infra-check infra-init infra-plan infra-apply infra-rebuild infra-destroy infra-output kubeconfig ssh-server node-status
 
-infra-check: ## Offline OpenTofu checks: fmt, validate, tests with mocked providers (no credentials)
+infra-check: ## Offline OpenTofu checks for all stacks: fmt, validate, mocked-provider tests (no credentials)
 	$(TOFU_SH) check
 
 infra-init: ## Connect OpenTofu to the state bucket
@@ -34,3 +34,11 @@ ssh-server: ## Shell on the node over Tailscale SSH
 
 node-status: ## First-boot progress on the node (cloud-init, k3s install log)
 	$(NODE_SH) status
+
+.PHONY: github-plan github-apply
+
+github-plan: ## Plan repository settings (infra/github: main branch ruleset)
+	QOPS_STACK=github $(TOFU_SH) plan $(ARGS)
+
+github-apply: ## Apply the reviewed plan from github-plan
+	QOPS_STACK=github $(TOFU_SH) apply

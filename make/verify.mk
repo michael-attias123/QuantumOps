@@ -1,7 +1,7 @@
 # Definition-of-Done checks, one target per phase (docs/ROADMAP.md).
 ALGORITHMS := research/algorithms
 
-.PHONY: verify-p0 verify-p1 verify-p2
+.PHONY: verify-p0 verify-p1 verify-p2 verify-p3
 
 verify-p0: sync lint test ## P0 Definition of Done checks
 	$(UV) run qops --version
@@ -17,3 +17,7 @@ verify-p2: verify-p1 infra-check ## P2 Definition of Done checks (needs the live
 	$(TOFU_SH) plan -detailed-exitcode -lock=false
 	$(NODE_SH) verify
 	@echo "P2 verified"
+
+verify-p3: verify-p2 deploy-check ## P3 Definition of Done checks (needs the live cluster)
+	bash deploy/bootstrap/scripts/verify.sh
+	@echo "P3 verified"

@@ -9,7 +9,7 @@
 | [reference/](reference/) | background material: the [original blueprint](reference/original-blueprint.md), [pin matrix](reference/compat-matrix.md), [cloud vendor comparison](reference/cloud-vendors.md) |
 
 Researcher guides live next to the code: [research/algorithms/README.md](../research/algorithms/README.md).
-Contributing rules: [.github/CONTRIBUTING.md](../.github/CONTRIBUTING.md). Runbooks: [OCI cluster](runbooks/oci-cluster.md).
+Contributing rules: [.github/CONTRIBUTING.md](../.github/CONTRIBUTING.md). Runbooks: [OCI cluster](runbooks/oci-cluster.md), [GitOps](runbooks/gitops.md).
 
 ## Phase status
 | Phase | Overview |

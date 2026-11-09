@@ -1,0 +1,151 @@
+name: images
+
+# Build qops-runtime for amd64 and arm64 on native runners, publish one multi-arch tag to GHCR, then commit the
+# new tag into deploy/envs/oci/values.yaml so Argo CD deploys it. On pull requests: build only (no push).
+
+on:
+  push:
+    branches: [main]
+    paths: &image_paths
+      - "packages/**"
+      - "research/algorithms/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".python-version"
+      - ".dockerignore"
+      - ".github/workflows/images.yml"
+  pull_request:
+    paths: *image_paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/qops-runtime
+  PUSH: ${{ github.event_name != 'pull_request' }}
+
+jobs:
+  build:
+    name: build qops-runtime (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: env.PUSH == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Choose output (push by digest on main, load locally on PRs)
+        id: out
+        run: |
+          if [[ "$PUSH" == "true" ]]; then
+            echo "outputs=type=image,name=$IMAGE,push-by-digest=true,name-canonical=true,push=true" >> "$GITHUB_OUTPUT"
+            echo "tags=" >> "$GITHUB_OUTPUT"
+          else
+            echo "outputs=type=docker" >> "$GITHUB_OUTPUT"
+            echo "tags=qops-runtime:ci" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/qops-runtime/Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          cache-from: type=gha,scope=qops-runtime-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=qops-runtime-${{ matrix.arch }}
+          outputs: ${{ steps.out.outputs.outputs }}
+          tags: ${{ steps.out.outputs.tags }}
+      - name: Smoke test (GHZ on Aer, same flags as the CronJob)
+        if: env.PUSH != 'true'
+        run: |
+          docker run --rm --read-only --tmpfs /tmp -e HOME=/tmp qops-runtime:ci \
+            run --local research/algorithms/ghz_benchmark --state-dir /tmp/qops --json
+      - name: Export digest
+        if: env.PUSH == 'true'
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+      - uses: actions/upload-artifact@v4
+        if: env.PUSH == 'true'
+        with:
+          name: digest-${{ matrix.arch }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  publish:
+    name: publish multi-arch tag
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digest-*
+          path: /tmp/digests
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: tag
+        run: echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - name: Create the manifest list (amd64 + arm64)
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            -t "$IMAGE:${{ steps.tag.outputs.tag }}" -t "$IMAGE:main" \
+            $(printf "$IMAGE@sha256:%s " *)
+          docker buildx imagetools inspect "$IMAGE:${{ steps.tag.outputs.tag }}"
+
+  bump:
+    name: deploy the new tag (commit to deploy/envs/oci)
+    if: github.event_name != 'pull_request'
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Set qops.image.tag
+        env:
+          TAG: ${{ needs.publish.outputs.tag }}
+        run: |
+          file=deploy/envs/oci/values.yaml
+          # The only `tag:` under `qops: image:` in this file; keep comments and layout untouched.
+          sed -i -E "/^qops:/,/^[^ #]/ s/^(    tag: ).*/\1${TAG}/" "$file"
+          grep -n "tag:" "$file"
+          git diff --quiet && { echo "already at $TAG"; exit 0; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "deploy: qops-runtime $TAG"
+          # Commits made with GITHUB_TOKEN don't start new workflow runs, so this can't loop.
+          git push origin HEAD:main

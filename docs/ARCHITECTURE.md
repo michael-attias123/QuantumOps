@@ -475,26 +475,26 @@ packages/                                  ✅ uv workspace; each service owns i
   qops-core/                               ✅ models, contract, state; store (Postgres + S3) P5; migrations/ (dbmate) P5
   qops-providers/                          ✅ adapter interface + aer; emulator P6; ibm/ionq/braket P7; gpu/kaggle/ P9
   qops-stages/                             ✅ optimizers, measurement; mitigation P9; decoders P10
-  qops-runtime/                            ✅ local loop; workflow entrypoints P6
+  qops-runtime/                            ✅ local loop, Dockerfile (multi-arch image); workflow entrypoints P6
   qops-tracker/  qops-emulator/            P6  remote-job tracker + outbox, async fake QPU
   qops-cli/                                ✅ `qops` CLI
-deploy/                                    P3  everything Argo CD syncs
-  bootstrap/                               P3  Argo CD values + root Application; scripts/ (vault-init, seed-secrets) P4
-  apps/                                    P3  app-of-apps chart (one value set per env)
-  platform/<component>/values.yaml         P3+ upstream charts (multi-source Applications)
-  charts/qops/                             P6  CRD, WorkflowTemplates, Events, tracker, emulator, ExternalSecrets,
+deploy/                                    ✅ everything Argo CD syncs
+  bootstrap/                               ✅ root Application; scripts/ (bootstrap, check, verify); vault-init, seed-secrets P4
+  apps/                                    ✅ app-of-apps chart (one value set per env)
+  platform/<component>/                    ✅ values for upstream charts, or plain manifests (namespaces, argocd-access)
+  charts/qops/                             ✅ smoke CronJob (P3); P6: CRD, WorkflowTemplates, Events, tracker, emulator, ExternalSecrets,
                                                Vault CRs, RBAC, NetworkPolicies, dashboards, Kyverno policies
-  envs/{oci,ci}/                           P3  oci = the real cluster, ci = kind in GitHub Actions
+  envs/{oci,ci}/                           ✅ oci = the real cluster, ci = kind in GitHub Actions
 infra/                                         OpenTofu
   ci/kind-config.yaml                      ✅ kind cluster for e2e tests (P6)
   bootstrap/                               ✅ one-time scripts before P2: tools, OCI login/budgets/bucket/S3 key, report
   oci/                                     ✅ VCN, 1× A1 VM, k3s cloud-init, tailnet policy + node key, KMS
   scripts/                                 ✅ tofu.sh (credentials + backend from ~/.config/qops), node.sh (kubeconfig, ssh)
-  github/                                  P3  repo settings, branch protection
+  github/                                  ✅ main branch ruleset (PRs + required checks)
   supabase/                                P5  Supabase project
 tests/                                     ✅ repo-wide guards: architecture, algorithm contract, pin matrix
 docs/                                      ✅ README index, ARCHITECTURE, ROADMAP, adr/, phases/, reference/, runbooks/
-make/                                      ✅ make includes: dev.mk, verify.mk, bootstrap.mk, infra.mk; deploy.mk P3 …
+make/                                      ✅ make includes: dev.mk, verify.mk, bootstrap.mk, infra.mk, deploy.mk …
 .github/                                   ✅ workflows/, CONTRIBUTING.md, renovate.json, linters/
 Makefile  pyproject.toml  uv.lock  README.md
 ```

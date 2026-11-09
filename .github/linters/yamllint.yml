@@ -4,6 +4,8 @@ ignore: |
   .venv/
   .cache/
   docs/reference/
+  # Helm templates are Go templates, not YAML; `make deploy-check` renders and validates them instead.
+  deploy/**/templates/
 
 rules:
   line-length:
@@ -13,3 +15,7 @@ rules:
     allowed-values: ["true", "false", "on"]
   comments:
     min-spaces-from-content: 1
+  # Allow compact maps like `requests: { cpu: 100m, memory: 256Mi }`.
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1

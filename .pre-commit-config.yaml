@@ -7,6 +7,8 @@ repos:
         args: [--markdown-linebreak-ext=md]
       - id: check-yaml
         args: [--allow-multiple-documents]
+        # Helm templates are Go templates; `make deploy-check` renders and validates them.
+        exclude: ^deploy/.*/templates/
       - id: check-toml
       - id: check-added-large-files
         args: [--maxkb=1024]

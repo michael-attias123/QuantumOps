@@ -31,3 +31,19 @@ output "kms_vault_unseal" {
     management_endpoint = oci_kms_vault.qops.management_endpoint
   }
 }
+
+output "tailnet_dns_name" {
+  description = "MagicDNS suffix; UIs exposed by the operator live at https://<name>.<this>."
+  value       = var.tailnet_dns_name
+}
+
+output "k8s_operator_oauth_client_id" {
+  description = "OAuth client ID for the Tailscale Kubernetes operator."
+  value       = tailscale_oauth_client.k8s_operator.id
+}
+
+output "k8s_operator_oauth_client_secret" {
+  description = "OAuth client secret for the Tailscale Kubernetes operator (read by make bootstrap)."
+  value       = tailscale_oauth_client.k8s_operator.key
+  sensitive   = true
+}

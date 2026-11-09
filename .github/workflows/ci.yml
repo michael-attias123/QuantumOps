@@ -65,7 +65,7 @@ jobs:
           uv run --locked qops run --local research/algorithms/vqe_h2
 
   infra:
-    name: opentofu (infra/oci)
+    name: opentofu (infra)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -75,6 +75,26 @@ jobs:
           tofu_wrapper: false
       - name: fmt, validate, tests with mocked providers (no credentials)
         run: bash infra/scripts/tofu.sh check
+
+  deploy:
+    name: deploy manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.19.0
+      - name: Install kubeconform
+        run: |
+          base=https://github.com/yannh/kubeconform/releases/download/v0.7.0
+          curl -fsSL "$base/kubeconform-linux-amd64.tar.gz" -o /tmp/kc.tgz
+          echo "$(curl -fsSL "$base/CHECKSUMS" | awk '$2 == "kubeconform-linux-amd64.tar.gz" {print $1}')  /tmp/kc.tgz" | sha256sum --check
+          tar -xzf /tmp/kc.tgz -C /usr/local/bin kubeconform
+      - name: helm lint, render each env, kubeconform
+        run: bash deploy/bootstrap/scripts/check.sh
 
   secrets:
     name: secret scan

@@ -45,3 +45,14 @@ resource "tailscale_tailnet_key" "node" {
 
   depends_on = [tailscale_acl.this]
 }
+
+# OAuth client for the Tailscale Kubernetes operator (P3). `make bootstrap` copies it into the cluster as the
+# tailscale/operator-oauth Secret (P4 moves it to Vault). The operator joins as tag:k8s-operator and creates
+# tag:k8s proxies for the services it exposes (e.g. the Argo CD UI).
+resource "tailscale_oauth_client" "k8s_operator" {
+  description = "qops k8s operator"
+  scopes      = ["devices:core", "auth_keys", "services"]
+  tags        = ["tag:k8s-operator"]
+
+  depends_on = [tailscale_acl.this]
+}

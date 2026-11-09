@@ -137,13 +137,14 @@ on Kaggle in P9 as planned.
 **Goal:** one command installs the whole platform from Git.
 
 Build
-- [ ] `deploy/bootstrap/` (Argo CD Helm values + root Application) and `deploy/apps/` app-of-apps chart
-- [ ] Sync waves and namespaces; Argo CD manages its own release
-- [ ] Tailscale Kubernetes operator; Argo CD UI at `argocd.<tailnet>.ts.net`
-- [ ] `deploy/envs/oci/` and `deploy/envs/ci/`
-- [ ] `images.yml`: multi-arch build (native arm64 + amd64 runners) → GHCR → bot commits tags into `deploy/envs/oci`
-- [ ] `infra/github/` (OpenTofu): branch protection, required checks
-- [ ] `make bootstrap`
+- [x] `deploy/bootstrap/` (Argo CD Helm values + root Application) and `deploy/apps/` app-of-apps chart
+- [x] Sync waves and namespaces; Argo CD manages its own release
+- [x] Tailscale Kubernetes operator; Argo CD UI at `argocd.<tailnet>.ts.net`
+- [x] `deploy/envs/oci/` and `deploy/envs/ci/`
+- [x] `images.yml`: multi-arch build (native arm64 + amd64 runners) → GHCR → bot commits tags into `deploy/envs/oci`
+- [x] `infra/github/` (OpenTofu): branch protection, required checks
+- [x] `make bootstrap`
+- [x] [ADR 0012](adr/0012-gitops-bootstrap.md), [runbook](runbooks/gitops.md); `make deploy-check` (helm lint + kubeconform) in CI; `make verify-p3`
 
 Definition of Done
 - [ ] On a freshly rebuilt cluster, `make bootstrap` → all apps Synced/Healthy with no manual kubectl
