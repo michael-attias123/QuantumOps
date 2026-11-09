@@ -41,7 +41,7 @@ fetch_kubeconfig() {
   "${SSH[@]}" 'sudo cat /etc/rancher/k3s/k3s.yaml' >"$tmp"
   # k3s names everything "default" and points at localhost; make it "qops" on the node's tailnet IP.
   sed -i -e "s#https://127.0.0.1:6443#https://$IP:6443#" \
-    -e 's/^\(\s*\)name: default$/\1name: qops/' \
+    -e 's/^\(\s*\(- \)\?\)name: default$/\1name: qops/' \
     -e 's/^\(\s*\)cluster: default$/\1cluster: qops/' \
     -e 's/^\(\s*\)user: default$/\1user: qops/' \
     -e 's/^current-context: default$/current-context: qops/' "$tmp"

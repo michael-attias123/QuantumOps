@@ -35,6 +35,12 @@ applied. If first boot failed or was slow, rebuild: `make infra-rebuild`, then `
 log without Tailscale: OCI console → Compute → Instances → `qops-node-1` → *Console connection* (uses
 `~/.ssh/qops_oci`).
 
+**kubectl says `Forbidden` (behind a company proxy).** The proxy gets the request for the node's 100.x address.
+The `make` targets already bypass it. For plain `kubectl`, add this line to `~/.bashrc` and open a new shell:
+```bash
+export NO_PROXY="100.64.0.0/10,.ts.net${NO_PROXY:+,$NO_PROXY}" no_proxy="100.64.0.0/10,.ts.net${no_proxy:+,$no_proxy}"
+```
+
 **`make kubeconfig` can't connect from WSL.** Check `tailscale.exe status` on Windows shows `qops-node-1`. WSL2 reaches
 the tailnet through Windows; if it doesn't, enable mirrored networking in `%UserProfile%\.wslconfig`
 (`[wsl2]` `networkingMode=mirrored`), then `wsl --shutdown`.

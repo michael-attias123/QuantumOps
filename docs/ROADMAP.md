@@ -19,7 +19,7 @@ checked, with each check scripted as `make verify-pN`. The design behind each it
 |---|---|---|---|---|
 | P0 | [Foundations](phases/p0-overview.md) | — | — | ✅ |
 | P1 | [L0 contract + local runtime](phases/p1-overview.md) | L0, L1, L3 (in-process) | P0 | ✅ |
-| P2 | Cloud cluster (OCI Always Free + Tailscale) | platform | P0 | ☐ |
+| P2 | [Cloud cluster (OCI Always Free + Tailscale)](phases/p2-overview.md) | platform | P0 | 🟡 running; 2 checks open |
 | T | [OCI trial GPU spike](adr/0010-oci-trial-burst-layer.md) (optional, ends on trial day 27) | L3 | P2 | dropped |
 | P3 | GitOps bootstrap | platform | P2 | ☐ |
 | P4 | Vault + ESO | platform | P3 | ☐ |
@@ -102,7 +102,7 @@ Build
 
 Definition of Done
 - [ ] From a second computer: `tailscale up && make kubeconfig && kubectl get nodes` → 1 Ready arm64 node
-- [ ] The VMs' public IPs answer on no port (checked from outside the tailnet)
+- [x] The VMs' public IPs answer on no port (checked from outside the tailnet)
 - [ ] `tofu plan` shows no drift; the OCI cost report shows $0
 
 Risks: A1 capacity (retry or try another availability domain), idle reclaim (a running cluster stays busy). · Cost: $0.

@@ -47,6 +47,10 @@ run "no_public_inbound" {
     error_message = "The node security list must have no inbound rules."
   }
   assert {
+    condition     = length(oci_core_default_security_list.default.ingress_security_rules) == 0 && length(oci_core_default_security_list.default.egress_security_rules) == 0
+    error_message = "The VCN's default security list must be emptied (it allows SSH from anywhere by default)."
+  }
+  assert {
     condition     = one(oci_core_security_list.node.egress_security_rules).destination == "0.0.0.0/0"
     error_message = "The node needs outbound internet."
   }

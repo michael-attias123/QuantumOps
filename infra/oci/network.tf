@@ -45,6 +45,14 @@ resource "oci_core_security_list" "node" {
   # Deliberately no ingress_security_rules (tests/plan.tftest.hcl checks this).
 }
 
+# OCI creates a default security list with every VCN that allows SSH from anywhere. Our subnet doesn't use it,
+# but take it over and empty it so it can never be attached by accident.
+resource "oci_core_default_security_list" "default" {
+  manage_default_resource_id = oci_core_vcn.qops.default_security_list_id
+  display_name               = "qops-default-unused-empty"
+  freeform_tags              = local.tags
+}
+
 resource "oci_core_subnet" "public" {
   compartment_id    = oci_identity_compartment.qops.id
   vcn_id            = oci_core_vcn.qops.id

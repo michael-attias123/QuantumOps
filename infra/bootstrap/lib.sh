@@ -13,6 +13,17 @@ QOPS_DRY_RUN="${QOPS_DRY_RUN:-0}"
 OCI_CONFIG_FILE="${OCI_CONFIG_FILE:-$HOME/.oci/config}"
 OCI_CLI_PROFILE="${OCI_CLI_PROFILE:-DEFAULT}"
 
+# Tailnet traffic must never go through a corporate HTTP proxy: the proxy can't reach 100.x addresses and answers
+# "Forbidden" (seen with kubectl behind a proxy in WSL). Go and curl both understand CIDRs in NO_PROXY.
+QOPS_TAILNET_NO_PROXY="100.64.0.0/10,.ts.net"
+case ",${NO_PROXY:-}," in
+  *",100.64.0.0/10,"*) ;;
+  *)
+    export NO_PROXY="$QOPS_TAILNET_NO_PROXY${NO_PROXY:+,$NO_PROXY}"
+    export no_proxy="$QOPS_TAILNET_NO_PROXY${no_proxy:+,$no_proxy}"
+    ;;
+esac
+
 if [[ -t 1 ]]; then
   _c_info=$'\033[36m' _c_ok=$'\033[32m' _c_warn=$'\033[33m' _c_err=$'\033[31m' _c_off=$'\033[0m'
 else
