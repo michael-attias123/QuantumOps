@@ -27,7 +27,7 @@ if have oci && have jq && [[ -n "$TENANCY" ]] &&
     TRIAL="$(date -u -d "${created%%T*} + 30 days" +%F 2>/dev/null ||
       date -u -j -v+30d -f %F "${created%%T*}" +%F) (estimate)"
   fi
-  BUDGETS="$(oci --profile "$OCI_CLI_PROFILE" budgets budget list --compartment-id "$TENANCY" --all 2>/dev/null |
+  BUDGETS="$(oci --profile "$OCI_CLI_PROFILE" budgets budget budget list --compartment-id "$TENANCY" --all 2>/dev/null |
     jq '[.data[]? | select(."display-name" | startswith("qops-"))] | length')"
   [[ "$(oci --profile "$OCI_CLI_PROFILE" os bucket get --namespace-name "$NAMESPACE" --bucket-name "$BUCKET" \
     2>/dev/null | jq -r '.data.versioning // empty')" == "Enabled" ]] && VERSIONED=1

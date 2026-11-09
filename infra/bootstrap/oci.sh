@@ -50,8 +50,8 @@ step_login() {
     return
   fi
   info "a browser window opens: log in to Oracle Cloud, then return here"
-  info "answers: pick your HOME region; profile name DEFAULT; no passphrase for the API key"
-  run oci setup bootstrap
+  info "answers: pick your HOME region; no passphrase for the API key"
+  run oci setup bootstrap --profile-name "$OCI_CLI_PROFILE" --config-location "$OCI_CONFIG_FILE"
   run chmod 600 "$OCI_CONFIG_FILE"
 }
 
@@ -89,7 +89,7 @@ trial_end() {
 }
 
 budget_id() {
-  ocij budgets budget list --compartment-id "$TENANCY" --all 2>/dev/null |
+  ocij budgets budget budget list --compartment-id "$TENANCY" --all 2>/dev/null |
     jq -r --arg n "$1" '.data[]? | select(."display-name" == $n) | .id' | head -n1
 }
 
@@ -100,7 +100,7 @@ ensure_budget() {
     ok "budget $name"
   else
     info "creating budget $name (\$$amount / month)"
-    run oci --profile "$OCI_CLI_PROFILE" budgets budget create --compartment-id "$TENANCY" \
+    run oci --profile "$OCI_CLI_PROFILE" budgets budget budget create --compartment-id "$TENANCY" \
       --amount "$amount" --reset-period MONTHLY --target-type COMPARTMENT --targets "[\"$TENANCY\"]" \
       --display-name "$name" --description "$desc" >/dev/null
     id="$(budget_id "$name")"
@@ -112,13 +112,13 @@ ensure_budget() {
 ensure_alert() {
   local budget="$1" name="$2" type="$3" threshold="$4"
   if [[ "$budget" != "<new-"* ]] &&
-    ocij budgets alert-rule list --budget-id "$budget" --all 2>/dev/null |
+    ocij budgets budget alert-rule list --budget-id "$budget" --all 2>/dev/null |
     jq -e --arg n "$name" '.data[]? | select(."display-name" == $n)' >/dev/null; then
     ok "  alert $name"
     return
   fi
   info "  alert $name -> $EMAIL"
-  run oci --profile "$OCI_CLI_PROFILE" budgets alert-rule create --budget-id "$budget" --display-name "$name" \
+  run oci --profile "$OCI_CLI_PROFILE" budgets budget alert-rule create --budget-id "$budget" --display-name "$name" \
     --type ACTUAL --threshold "$threshold" --threshold-type "$type" --recipients "$EMAIL" \
     --message "QuantumOps: OCI spend crossed $name. Check Billing -> Cost Analysis." >/dev/null
 }
