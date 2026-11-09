@@ -25,7 +25,11 @@ run "main_requires_prs_and_green_ci" {
     error_message = "The main CI jobs must be required checks."
   }
   assert {
-    condition     = length(github_repository_ruleset.main.bypass_actors) == 1 && github_repository_ruleset.main.bypass_actors[0].actor_type == "Integration"
-    error_message = "Only the GitHub Actions app (image tag bumps) may bypass the rules."
+    condition     = length(github_repository_ruleset.main.bypass_actors) == 1 && github_repository_ruleset.main.bypass_actors[0].actor_type == "DeployKey"
+    error_message = "Only deploy keys (the images.yml tag bump) may bypass the rules."
+  }
+  assert {
+    condition     = !github_repository_deploy_key.image_bump.read_only && github_actions_secret.image_bump.secret_name == "IMAGE_BUMP_DEPLOY_KEY"
+    error_message = "The bump deploy key must be writable and stored as the IMAGE_BUMP_DEPLOY_KEY Actions secret."
   }
 }

@@ -20,9 +20,9 @@ tailnet can open it.
    The bot then commits that tag to `deploy/envs/oci/values.yaml`.
 3. Argo CD sees the commit and updates the `qops-smoke` CronJob.
 
-**One-time setting:** a new GHCR package starts private. After the first image is published, open
-github.com → your profile → *Packages* → `qops-runtime` → *Package settings* → *Change visibility* → **Public**.
-Otherwise pods fail with `ErrImagePull`.
+The package is public: it inherited the visibility of the public repository (checked on 2026-11-09 with an
+anonymous pull). If pods ever fail with `ErrImagePull`, check github.com → *Packages* → `qops-runtime` →
+*Package settings* → visibility **Public**.
 
 ## Fresh or rebuilt cluster
 ```bash
@@ -45,8 +45,9 @@ errors, rerun `make bootstrap` (it rewrites the `operator-oauth` Secret from Ope
 **Pods show `ErrImagePull` for `qops-runtime`.** The package is still private (see above), or the tag in
 `deploy/envs/oci/values.yaml` was never published. Check the latest `images` workflow run.
 
-**The bot can't push the tag bump.** The `main` ruleset must list the GitHub Actions app as a bypass actor
-(`infra/github/main.tf`). Run `make github-plan` and check that the plan shows no changes.
+**The bump job can't push the tag.** It pushes with the `IMAGE_BUMP_DEPLOY_KEY` deploy key, which the `main`
+ruleset lets bypass. Run `make github-plan`: it should show no changes. If the key or secret was deleted on
+GitHub, the plan recreates them; apply it.
 
 **Argo CD itself is broken.** Its Application never prunes. Reinstall with Helm by deleting the `argocd-server`
 deployment and rerunning `make bootstrap`: Argo CD's own resources are recreated and the Applications remain.

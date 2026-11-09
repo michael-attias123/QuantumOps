@@ -6,6 +6,10 @@ terraform {
       source  = "integrations/github"
       version = "~> 6.6"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 
   # Same bucket and encryption as infra/oci; only the state key differs.

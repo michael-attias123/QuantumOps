@@ -41,10 +41,24 @@ provider "github" {
   owner = var.github_owner
 }
 
-locals {
-  # The "GitHub Actions" app. Workflows push as this app with GITHUB_TOKEN; images.yml commits image tag bumps
-  # straight to main, so it may bypass the PR rule. People still go through pull requests.
-  github_actions_app_id = 15368
+# images.yml commits image tag bumps straight to main. On a personal (non-organization) account a ruleset can't
+# exempt the GitHub Actions app, so the bump job pushes with this deploy key instead, and deploy keys may bypass.
+# The private key lives only in the encrypted state and in the Actions secret; people still go through PRs.
+resource "tls_private_key" "image_bump" {
+  algorithm = "ED25519"
+}
+
+resource "github_repository_deploy_key" "image_bump" {
+  repository = var.repository
+  title      = "images.yml tag bump (managed by infra/github)"
+  key        = tls_private_key.image_bump.public_key_openssh
+  read_only  = false
+}
+
+resource "github_actions_secret" "image_bump" {
+  repository      = var.repository
+  secret_name     = "IMAGE_BUMP_DEPLOY_KEY"
+  plaintext_value = tls_private_key.image_bump.private_key_openssh
 }
 
 resource "github_repository_ruleset" "main" {
@@ -61,8 +75,7 @@ resource "github_repository_ruleset" "main" {
   }
 
   bypass_actors {
-    actor_id    = local.github_actions_app_id
-    actor_type  = "Integration"
+    actor_type  = "DeployKey"
     bypass_mode = "always"
   }
 
