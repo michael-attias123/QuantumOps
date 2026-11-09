@@ -20,6 +20,7 @@ checked, with each check scripted as `make verify-pN`. The design behind each it
 | P0 | [Foundations](phases/p0-overview.md) | — | — | ✅ |
 | P1 | [L0 contract + local runtime](phases/p1-overview.md) | L0, L1, L3 (in-process) | P0 | ✅ |
 | P2 | Cloud cluster (OCI Always Free + Tailscale) | platform | P0 | ☐ |
+| T | [OCI trial GPU spike](adr/0010-oci-trial-burst-layer.md) (optional, ends on trial day 27) | L3 | P2 | ☐ |
 | P3 | GitOps bootstrap | platform | P2 | ☐ |
 | P4 | Vault + ESO | platform | P3 | ☐ |
 | P5 | State layer (Supabase) | platform | P4 | ☐ |
@@ -102,6 +103,27 @@ Definition of Done
 - [ ] `tofu plan` shows no drift; the OCI cost report shows $0
 
 Risks: A1 capacity (retry or try another availability domain), idle reclaim (a running cluster stays busy). · Cost: $0.
+
+Trial guardrails ([ADR 0010](adr/0010-oci-trial-burst-layer.md))
+- [ ] `infra/oci/` validation: A1 `ocpus <= 2 && memory_gb <= 12`
+- [ ] `infra/oci-trial/` (separate state, `qops-trial` tags, refuses `apply` from 3 days before the trial end): `gpu.tf`, `x86-node.tf`
+- [ ] `make/trial.mk`: `trial-gpu-up`, `trial-gpu-down`, `trial-down`, `trial-audit`, `trial-cost`
+- [ ] Runbook `docs/runbooks/oci-trial-teardown.md` (day-27 checklist)
+
+---
+
+## T — OCI trial GPU spike (optional, time-boxed)
+**Goal:** measure the GPU paths of L3 on credits, before P9/P10 depend on them. Runs only while the trial lasts.
+
+Build
+- [ ] `research/experiments/gpu-spike/`: qiskit-aer-gpu vs CPU Aer on `ghz_benchmark` and `vqe_h2` at growing widths; cudaq-qec vs PyMatching, surface-code memory d = 3–9
+- [ ] Build and run the planned Kaggle GPU image on the A10
+- [ ] `docs/reference/gpu-spike.md`: numbers + go/no-go per GPU path
+
+Definition of Done
+- [ ] Results committed; `make trial-down && make trial-audit` → 0 trial resources, A1 ≤ 2 OCPU / 12 GB
+
+Prerequisite: GPU A10 limit ≥ 1. If Oracle refuses it, this track is dropped. · Cost: ≤ $150 of trial credits, $0 cash.
 
 ---
 

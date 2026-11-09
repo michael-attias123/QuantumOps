@@ -3,6 +3,10 @@
 > **Decision (2026-11-05): stay with Oracle Cloud Always Free** (single A1 node, 2 OCPU / 12 GB; see
 > [ADR 0002](../adr/0002-oci-always-free-and-tailscale.md) and [ADR 0008](../adr/0008-single-node-a1-cluster.md)).
 > Hetzner CAX31 (~€21/month) is the fallback if the free tier becomes unusable; paid options need explicit approval.
+>
+> **Free Trial (2026-11-08):** new OCI accounts also get **$300 of credits for 30 days**. We use them only as a
+> disposable burst layer (mainly a GPU test for L3), deleted by trial day 27; see
+> [ADR 0010](../adr/0010-oci-trial-burst-layer.md).
 
 **Method.** All figures come from web search results. **WebFetch was blocked** for vendor sites in this session (docs.oracle.com failed DNS, and cloud.google.com returned only a page title), so no official page was read directly. Figures marked **(3P)** come from third-party price aggregators and need checking against the vendor calculator. A month is taken as 730 h. Prices are list, on-demand, for US regions unless noted otherwise.
 
