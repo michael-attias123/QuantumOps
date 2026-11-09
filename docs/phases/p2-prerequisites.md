@@ -52,7 +52,7 @@ make oci-bootstrap
 ```
 It does the following, and is safe to rerun:
 - prints your **Ampere A1** and **GPU A10** limits and the estimated **trial end date**;
-- creates the budgets: **$1** (alert at 1%) and **$300 trial credits** (alerts at $50 / $150 / $250), emailed to you;
+- creates a **$1** budget with email alerts at **1%** (any spend) and at **$50 / $150 / $250** (trial credits). Oracle allows one budget per compartment, so all four alerts share it;
 - creates the versioned state bucket **`qops-tofu-state`**;
 - creates the S3-compatible key → `~/.config/qops/oci.env`.
 
@@ -97,7 +97,7 @@ Object Storage namespace:   axq1bcdefg2h
 State bucket:               qops-tofu-state
 Tailnet DNS name:           tail1234ab.ts.net
 This computer's OS:         Ubuntu 24.04.1 LTS (WSL2) (x86_64)
-Checklist:                  [x] OCI API login works  [x] budgets (2/2)  [x] bucket versioned
+Checklist:                  [x] OCI API login works  [x] budget alerts (4/4)  [x] bucket versioned
                             [x] S3 key saved  [x] Tailscale token saved
                             [x] on the tailnet  [x] HTTPS certificates  [x] SSH key
 Tools:                      tofu 1.10.x …
@@ -132,8 +132,8 @@ Use this only if a script fails and we can't fix it quickly. Each item does by h
 - **Limits** (`oci-bootstrap`): *Governance & Administration → Limits, Quotas and Usage*, filtered for "Ampere A1"
   and "GPU A10". During the trial the A1 numbers are trial limits; we still build for 2 OCPU / 12 GB.
 - **Budgets:** *Billing & Cost Management → Budgets → Create budget*, root compartment.
-  - `qops-always-free`: $1, alert at 1% of actual spend.
-  - `qops-trial-credits`: $300, alerts at $50, $150 and $250 (absolute, actual).
+  - `qops-always-free`: $1, with alert rules: 1% of actual spend, and $50, $150 and $250 (absolute, actual).
+    Oracle allows only one budget per compartment.
 - **Bucket:** *Storage → Buckets → Create bucket* `qops-tofu-state`, Standard tier, Object Versioning on. Note the
   namespace.
 - **S3 key:** *My profile → Customer secret keys → Generate secret key* `qops-tofu`. Put it in `~/.config/qops/oci.env`

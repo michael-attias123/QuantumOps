@@ -114,5 +114,8 @@ ts_cmd() {
     printf 'tailscale\n'
   elif is_wsl && have tailscale.exe; then
     printf 'tailscale.exe\n'
+  elif is_wsl && [[ -x "/mnt/c/Program Files/Tailscale/tailscale.exe" ]]; then
+    # The Windows installer doesn't add Tailscale to PATH; use its default location.
+    printf '%s\n' "/mnt/c/Program Files/Tailscale/tailscale.exe"
   fi
 }
