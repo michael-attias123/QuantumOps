@@ -30,6 +30,11 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+      - id: shellcheck
+        name: shellcheck
+        entry: uv run shellcheck -x -P SCRIPTDIR
+        language: system
+        types: [shell]
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.21.2
     hooks:

@@ -86,12 +86,14 @@ Cost: $0.
 ## P2 — Cloud cluster (OCI Always Free + Tailscale)
 **Goal:** an always-on, private, $0 cluster reachable from every computer.
 
-Prerequisites (one-time, by you): see **[Before P2](phases/p2-prerequisites.md)**: Oracle Cloud account (card for
-identity verification only, no charge), API key, state bucket, budget alarm; Tailscale account, tags, HTTPS.
+Prerequisites (one-time, by you, ~15 min): see **[Before P2](phases/p2-prerequisites.md)**. Sign-ups, browser
+logins, a Tailscale API token and the HTTPS toggle are manual; tools, OCI API key, limits, budgets, state bucket and S3
+key are scripted (`make tools-admin oci-login oci-bootstrap tailscale-login prereqs-report`, in `infra/bootstrap/`).
 
 Build
 - [ ] `infra/oci/` (OpenTofu): VCN + subnet, security lists with **no public inbound**, **1× `VM.Standard.A1.Flex` (2 OCPU / 12 GB)**: the whole Always Free A1 allowance ([ADR 0008](adr/0008-single-node-a1-cluster.md))
-- [ ] cloud-init: Tailscale join (auth key as a sensitive var), single-node k3s bound to the tailnet IP, node label `qops.io/pool=cpu`, Traefik/servicelb disabled (Tailscale operator exposes services)
+- [ ] Tailscale provider in the same stack: tailnet policy (tags) + MagicDNS from Git, and a 1-hour tagged auth key minted at `apply` (no hand-made keys)
+- [ ] cloud-init: Tailscale join with that key, single-node k3s bound to the tailnet IP, node label `qops.io/pool=cpu`, Traefik/servicelb disabled (Tailscale operator exposes services)
 - [ ] OCI KMS key (free) for later Vault auto-unseal
 - [ ] Remote state in OCI Object Storage (S3 backend) + OpenTofu state encryption
 - [ ] `make kubeconfig` (fetch kubeconfig over Tailscale), `make ssh-server`

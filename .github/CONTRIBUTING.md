@@ -37,6 +37,7 @@ uv run pre-commit install
 - Researcher code: `research/algorithms/`; run requests: `research/experiments/`.
 - New make targets: a `make/<area>.mk` file, never the root `Makefile`.
 - Dockerfiles live in the package they build; migrations in `packages/qops-core/migrations/`.
+- Shell scripts: `infra/bootstrap/` (one-time setup) or `deploy/bootstrap/scripts/` (P4); bash with `lib.sh`, idempotent, `--dry-run`, shellcheck-clean, secrets only in `~/.config/qops/*.env`.
 - Planned paths for every phase: ARCHITECTURE §13.
 - Commit messages: `<area>: <imperative summary>` (e.g. `providers: add IBM SamplerV2 adapter`).
 - Significant decisions get an ADR in `docs/adr/`.

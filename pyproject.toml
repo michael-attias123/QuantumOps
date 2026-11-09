@@ -30,6 +30,7 @@ dev = [
     "pytest>=8.3",
     "pytest-cov>=6.0",
     "ruff>=0.8",
+    "shellcheck-py>=0.11.0.1",
     "types-pyyaml>=6.0.12.20261103",
     "yamllint>=1.35",
 ]
