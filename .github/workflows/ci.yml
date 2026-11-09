@@ -64,6 +64,18 @@ jobs:
           uv run --locked qops run --local research/algorithms/ghz_benchmark
           uv run --locked qops run --local research/algorithms/vqe_h2
 
+  infra:
+    name: opentofu (infra/oci)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.13.9
+          tofu_wrapper: false
+      - name: fmt, validate, tests with mocked providers (no credentials)
+        run: bash infra/scripts/tofu.sh check
+
   secrets:
     name: secret scan
     runs-on: ubuntu-latest

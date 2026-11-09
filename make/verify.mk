@@ -1,7 +1,7 @@
 # Definition-of-Done checks, one target per phase (docs/ROADMAP.md).
 ALGORITHMS := research/algorithms
 
-.PHONY: verify-p0 verify-p1
+.PHONY: verify-p0 verify-p1 verify-p2
 
 verify-p0: sync lint test ## P0 Definition of Done checks
 	$(UV) run qops --version
@@ -12,3 +12,8 @@ verify-p1: verify-p0 compat ## P1 Definition of Done checks
 	$(UV) run qops run --local $(ALGORITHMS)/ghz_benchmark --state-dir .qops/verify/ghz
 	$(UV) run qops run --local $(ALGORITHMS)/vqe_h2 --state-dir .qops/verify/vqe
 	@echo "P1 verified"
+
+verify-p2: verify-p1 infra-check ## P2 Definition of Done checks (needs the live cluster)
+	$(TOFU_SH) plan -detailed-exitcode -lock=false
+	$(NODE_SH) verify
+	@echo "P2 verified"
