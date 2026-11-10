@@ -169,8 +169,8 @@ Build
 - [ ] `make seed-secrets` (OpenTofu output → Vault, never on screen); `make secrets-status`, `make secrets-sync`
 - [ ] shared-platform: `projects/quantumops.yaml` (Actions roles `main` and `pr`, the ESO Kubernetes role) and
       `stacks/vault-config/clusters/qops.pub.pem`
-- [ ] `make oci-bootstrap` only checks the state bucket and budget (shared-platform's `oci-foundation` owns them);
-      the unused KMS unseal key is removed from `infra/oci`
+- [ ] `make oci-bootstrap` only checks the state bucket and budget (shared-platform's `oci-foundation` owns them).
+      `infra/oci/kms.tf` stays as it is: it's free, and P4 destroys nothing
 - [ ] CI calls shared-platform's `security.yml@main`
 
 Definition of Done (`make verify-p4`)

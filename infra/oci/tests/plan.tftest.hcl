@@ -96,6 +96,15 @@ run "cloud_init_installs_k3s_on_the_tailnet" {
   }
 }
 
+run "kms_policy_is_scoped_to_the_unseal_key" {
+  command = apply
+
+  assert {
+    condition     = strcontains(join("\n", oci_identity_policy.node_kms.statements), "target.key.id = '${oci_kms_key.vault_unseal.id}'")
+    error_message = "Nodes may use only the Vault unseal key."
+  }
+}
+
 run "rejects_more_ocpus_than_always_free" {
   command = plan
   variables {

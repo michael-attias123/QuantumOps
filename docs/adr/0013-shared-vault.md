@@ -32,8 +32,8 @@ secrets down with it. The 12 GB node is also tight: Vault and vault-config-opera
 - **Seeding:** `make seed-secrets` copies values that QuantumOps' own OpenTofu state holds into Vault, through files
   and stdin, never on screen. `make bootstrap` no longer writes the OAuth Secret.
 - **Shared ownership of the OCI basics:** shared-platform's `stacks/oci-foundation` owns the OpenTofu state bucket and
-  the budget (imported, `prevent_destroy`). `make oci-bootstrap` only checks them. The unused KMS unseal key
-  (`infra/oci/kms.tf`) is removed.
+  the budget (imported, `prevent_destroy`). `make oci-bootstrap` only checks them. The KMS unseal key in
+  `infra/oci/kms.tf` is no longer used but stays: it's free, and deleting a KMS vault can't be undone.
 - **CI** also calls shared-platform's `security.yml@main` (gitleaks, actionlint, shellcheck). Building blocks are used
   at `main`, never at a tag (shared-platform `docs/contract.md`).
 - **P11 note:** Alloy will send metrics, logs and traces to the shared Grafana stack, instead of in-cluster Grafana and
