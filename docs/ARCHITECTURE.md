@@ -151,9 +151,8 @@ sequenceDiagram
 | Component | Namespace | Role | Tech |
 |---|---|---|---|
 | Argo CD | `argocd` | GitOps controller, app-of-apps, manages itself | Argo CD (Helm) |
-| Vault | `vault` | Secrets, dynamic DB creds, k8s auth, audit | HashiCorp Vault OSS, Raft standalone, injector |
-| vault-config-operator | `vault-config-operator` | Vault policies/roles/engines declared as CRs | redhat-cop vault-config-operator |
-| External Secrets | `external-secrets` | Sync static Vault KV into K8s Secrets | ESO |
+| Vault (shared) | outside the cluster | Secrets, k8s and GitHub logins, audit; shared with other projects ([ADR 0013](adr/0013-shared-vault.md)) | HashiCorp Vault on its own VM, from shared-platform |
+| External Secrets | `external-secrets` | Sync Vault KV into K8s Secrets (JWT login with its own SA token) | ESO |
 | Argo Workflows | `argo` | Runs L1/L3 pods as workflows | Argo Workflows (controller + server UI) |
 | Argo Events | `argo-events` (controller) | EventBus, EventSources, Sensors (objects live in `qops-runs`) | Argo Events + NATS JetStream EventBus |
 | job-tracker | `qops-system` | Poll in-flight remote QPU **and GPU** jobs, fetch results, outbox dispatch, `/metrics` | Python asyncio |
@@ -425,12 +424,12 @@ In CI and offline dev the same code runs against in-cluster **Postgres + MinIO**
 
 ## 12. Secrets (Vault)
 
-Vault OSS, Raft storage (standalone), agent injector enabled, audit device on (shipped to Loki).
-
-**Bootstrap (the only imperative step):** `deploy/bootstrap/scripts/vault-init.sh` initializes and unseals Vault, stores the keys *outside* the
-repo (`~/.qops/`), and enables k8s auth for vault-config-operator. Everything after that is declared as
-vault-config-operator CRs in Git. Vault uses **OCI KMS auto-unseal** (free tier), so no laptop is needed after a restart;
-the fallback is `make unseal` over Tailscale.
+**Since P4 ([ADR 0013](adr/0013-shared-vault.md)):** one Vault serves every project. It runs on its own Always Free VM
+from the [shared-platform](https://github.com/michael-attias123/shared-platform) repo, at https://vault.158-178-129-140.sslip.io, with KMS
+auto-unseal, an audit log and daily snapshots. Its configuration (mounts, policies, roles) is declared there, in
+`projects/quantumops.yaml`; nothing about Vault is configured from this repo. The cluster logs in on the JWT mount
+`jwt-k8s-qops` with service-account tokens, so it holds no Vault credential. Paths are `kv/quantumops/<name>`;
+the `kv/qops/...` names below are the earlier design and get renamed as each phase adds them.
 
 | Path / role | Type | Consumers |
 |---|---|---|
@@ -457,7 +456,8 @@ the fallback is `make unseal` over Tailscale.
 | `job-tracker` | ✅ | ✅ | ✅ | ✅ |
 | remote Kaggle job | ❌ | ❌ | ❌ | signed URLs only |
 
-Secrets enter Vault only through `make seed-secrets` (interactive prompts). **gitleaks** runs in CI.
+Secrets enter Vault only through `make seed-secrets` (from OpenTofu output) or shared-platform's
+`make vault-seed PROJECT=quantumops` (hidden prompts). **gitleaks** runs in CI.
 
 ---
 
@@ -479,7 +479,7 @@ packages/                                  ✅ uv workspace; each service owns i
   qops-tracker/  qops-emulator/            P6  remote-job tracker + outbox, async fake QPU
   qops-cli/                                ✅ `qops` CLI
 deploy/                                    ✅ everything Argo CD syncs
-  bootstrap/                               ✅ root Application; scripts/ (bootstrap, check, verify); vault-init, seed-secrets P4
+  bootstrap/                               ✅ root Application; scripts/ (bootstrap, check, verify); seed-secrets, verify-p4 (P4)
   apps/                                    ✅ app-of-apps chart (one value set per env)
   platform/<component>/                    ✅ values for upstream charts, or plain manifests (namespaces, argocd-access)
   charts/qops/                             ✅ smoke CronJob (P3); P6: CRD, WorkflowTemplates, Events, tracker, emulator, ExternalSecrets,
@@ -507,9 +507,9 @@ Makefile  pyproject.toml  uv.lock  README.md
 | Wave | Content |
 |---|---|
 | −2 | namespaces, CRDs |
-| −1 | Vault |
-| 0 | ESO, vault-config-operator, Argo Workflows, Argo Events, Tailscale operator, monitoring |
-| 1 | qops config: ClusterSecretStore, ExternalSecrets, Vault CRs, EventBus, EventSources, Sensors, WorkflowTemplates, QuantumExperiment CRD |
+| −1 | Argo CD |
+| 0 | ESO, Argo Workflows, Argo Events, Tailscale operator, monitoring |
+| 1 | qops config: ClusterSecretStore, ExternalSecrets, EventBus, EventSources, Sensors, WorkflowTemplates, QuantumExperiment CRD |
 | 2 | DB migration PreSync Job, job-tracker, qpu-emulator |
 | 3 | `research/experiments/` |
 
@@ -545,7 +545,7 @@ later without chart changes.
 - **k3s rather than OKE**, so the cluster stays portable and other nodes can join over the tailnet later.
 - **OpenTofu state:** OCI Object Storage (Always Free, S3-compatible backend) with OpenTofu state encryption. OCI API keys
   and Tailscale auth keys are sensitive variables or env vars, never committed.
-- **Footprint budget (12 GB):** k3s ~1 GB · Argo CD ~1 GB · Vault + ESO + vault-config-operator ~0.6 GB · Argo Workflows +
+- **Footprint budget (12 GB):** k3s ~1 GB · Argo CD ~1 GB · ESO ~0.1 GB (Vault is off-cluster) · Argo Workflows +
   Events + NATS ~0.8 GB · Tailscale operator ~0.1 GB · monitoring ≤ 2 GB (short retention, Loki optional) · Kyverno ~0.5 GB →
   ~6 GB platform, leaving ~5 GB for workflow pods, the tracker and the emulator. Every component runs one replica with
   explicit requests/limits; workflow parallelism is capped so pods queue instead of overcommitting. Traefik and servicelb

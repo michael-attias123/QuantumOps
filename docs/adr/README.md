@@ -17,6 +17,7 @@ rewritten after acceptance; supersede it with a new ADR instead.
 | [0010](0010-oci-trial-burst-layer.md) | OCI Free Trial credits are a disposable burst layer |
 | [0011](0011-tailnet-and-node-key-in-opentofu.md) | Tailnet policy and node auth key are managed by OpenTofu |
 | [0012](0012-gitops-bootstrap.md) | GitOps bootstrap: one Helm install, then Argo CD manages everything |
+| [0013](0013-shared-vault.md) | Secrets from a shared Vault on its own VM, synced by External Secrets |
 
 ## Template
 

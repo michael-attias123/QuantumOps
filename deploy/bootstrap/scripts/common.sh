@@ -3,6 +3,8 @@
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 KUBE_CONTEXT="${QOPS_KUBE_CONTEXT:-qops}"
+# The shared Vault (shared-platform, ADR 0013).
+QOPS_VAULT_ADDR="${QOPS_VAULT_ADDR:-https://vault.158-178-129-140.sslip.io}"
 export PATH="$HOME/.local/bin:$PATH"
 
 k() { kubectl --context "$KUBE_CONTEXT" "$@"; }

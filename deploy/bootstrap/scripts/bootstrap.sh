@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install the platform from Git onto the cluster: the only imperative step of P3. Safe to rerun.
-#   1. namespaces, and the Tailscale operator's OAuth Secret (from OpenTofu output; P4 moves it to Vault)
+#   1. namespaces (the Tailscale operator's OAuth Secret comes from Vault through ESO; see make seed-secrets)
 #   2. Argo CD via Helm, once; from then on Argo CD manages itself (the argo-cd Application)
 #   3. the root Application, which renders deploy/apps for the oci environment
 #   4. wait until every Application is Synced and Healthy
@@ -19,15 +19,6 @@ k get nodes >/dev/null || die "kubectl can't reach the cluster (context '$KUBE_C
 
 info "namespaces"
 k apply -f "$REPO_ROOT/deploy/platform/namespaces/namespaces.yaml" >/dev/null
-
-info "Tailscale operator OAuth secret (from infra/oci output)"
-client_id="$(tofu_output -raw k8s_operator_oauth_client_id)" || die "no OAuth client in the infra/oci state. Run: make infra-plan, make infra-apply"
-# The secret goes from OpenTofu straight into the cluster through a pipe: never on disk, never on screen.
-k -n tailscale create secret generic operator-oauth \
-  --from-literal=client_id="$client_id" \
-  --from-file=client_secret=<(tofu_output -raw k8s_operator_oauth_client_secret) \
-  --dry-run=client -o json | k apply -f - >/dev/null
-ok "tailscale/operator-oauth"
 
 ARGO_REPO="$(app_field argo-cd repo)"
 ARGO_VERSION="$(app_field argo-cd version)"

@@ -96,6 +96,16 @@ jobs:
       - name: helm lint, render each env, kubeconform
         run: bash deploy/bootstrap/scripts/check.sh
 
+  # The checks every project runs, from shared-platform at main (its docs/contract.md: never pinned to a tag).
+  security:
+    name: security
+    uses: michael-attias123/shared-platform/.github/workflows/security.yml@main
+    permissions:
+      contents: read
+    with:
+      shellcheck: 'infra/**/*.sh deploy/**/*.sh'
+      gitleaks-config: .github/linters/gitleaks.toml
+
   secrets:
     name: secret scan
     runs-on: ubuntu-latest

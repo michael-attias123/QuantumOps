@@ -12,7 +12,6 @@ One OpenTofu stack for everything QuantumOps needs on Oracle Cloud Always Free a
 | `network.tf` | VCN, internet gateway, route table, security list with **no inbound rules**, subnet |
 | `node.tf` | The A1 VM (k3s server) |
 | `templates/cloud-init.yaml.tftpl` | First boot: Tailscale join (tagged, Tailscale SSH), single-node k3s on `tailscale0` |
-| `kms.tf` | Vault + HSM key for HashiCorp Vault auto-unseal (P4), dynamic group and policy for the node |
 | `tailscale.tf` | Tailnet policy, MagicDNS, the node's single-use auth key ([ADR 0011](../../docs/adr/0011-tailnet-and-node-key-in-opentofu.md)) |
 | `outputs.tf` | Node name, tailnet name, public IP, KMS IDs for P4 |
 | `tests/plan.tftest.hcl` | Offline tests with mocked providers (`make infra-check`, runs in CI) |

@@ -6,7 +6,7 @@ checked, with each check scripted as `make verify-pN`. The design behind each it
 **Ground rules for every phase**
 - **$0.** If a step would cost money, stop and ask first. Paid paths stay disabled by default.
 - **GitOps.** If it runs in the cluster, it's declared in Git. The only imperative steps are `tofu apply` for the
-  cluster and the Vault init/seed scripts.
+  cluster and `make seed-secrets`. Vault itself is shared-platform's ([ADR 0013](adr/0013-shared-vault.md)).
 - **No secrets in Git.** Secrets go through `make seed-secrets` → Vault, or as sensitive OpenTofu variables. gitleaks runs in CI.
 - **One branch per phase:** `phase/pN-<slug>` from `main` → PR → merge commit → tag `pN-<slug>` → delete the branch
   ([ADR 0009](adr/0009-repository-layout-and-branches.md)). New folders appear only when the phase fills them.
@@ -22,7 +22,7 @@ checked, with each check scripted as `make verify-pN`. The design behind each it
 | P2 | [Cloud cluster (OCI Always Free + Tailscale)](phases/p2-overview.md) | platform | P0 | ✅ |
 | T | [OCI trial GPU spike](adr/0010-oci-trial-burst-layer.md) (optional, ends on trial day 27) | L3 | P2 | dropped |
 | P3 | [GitOps bootstrap](phases/p3-overview.md) | platform | P2 | ✅ |
-| P4 | Vault + ESO | platform | P3 | ☐ |
+| P4 | Secrets from the shared Vault (ESO) | platform | P3 | ☐ |
 | P5 | State layer (Supabase) | platform | P4 | ☐ |
 | P6 | Event-driven pipeline, one-shot (emulator) | L1, L2 | P1, P5 | ☐ |
 | P7 | Real QPU providers + cost guard | L2 | P6 | ☐ |
@@ -156,23 +156,32 @@ Cost: $0.
 
 ---
 
-## P4 — Vault + External Secrets
-**Goal:** every credential comes from Vault; Vault config is GitOps; no laptop needed after a restart.
+## P4 — Secrets from the shared Vault (ESO)
+**Goal:** the cluster gets its credentials from the shared Vault, and holds no Vault credential itself
+([ADR 0013](adr/0013-shared-vault.md)). Vault runs on its own VM in
+[shared-platform](https://github.com/michael-attias123/shared-platform), at https://vault.158-178-129-140.sslip.io.
 
 Build
-- [ ] Vault (Raft standalone, injector, audit device) with **OCI KMS auto-unseal**
-- [ ] `deploy/bootstrap/scripts/vault-init.sh`, `make seed-secrets`; recovery keys stored outside the repo; `make unseal` fallback
-- [ ] vault-config-operator; policies, k8s auth roles, KV v2 mount declared as CRs
-- [ ] ESO + ClusterSecretStore + ExternalSecrets for provider tokens (IBM, IonQ, Kaggle)
-- [ ] ServiceAccounts `qops-l1`, `qops-l3`, `job-tracker` with distinct policies
+- [ ] External Secrets Operator (wave 0); `ClusterSecretStore vault` (wave 1): path `kv`, KV v2, JWT login on
+      `jwt-k8s-qops` with ESO's own service-account token (audience `vault`)
+- [ ] `ExternalSecret` for the Tailscale operator's OAuth client from `kv/quantumops/tailscale`; `make bootstrap` no
+      longer writes it
+- [ ] `make seed-secrets` (OpenTofu output → Vault, never on screen); `make secrets-status`, `make secrets-sync`
+- [ ] shared-platform: `projects/quantumops.yaml` (Actions roles `main` and `pr`, the ESO Kubernetes role) and
+      `stacks/vault-config/clusters/qops.pub.pem`
+- [ ] `make oci-bootstrap` only checks the state bucket and budget (shared-platform's `oci-foundation` owns them);
+      the unused KMS unseal key is removed from `infra/oci`
+- [ ] CI calls shared-platform's `security.yml@main`
 
-Definition of Done
-- [ ] Rebooting the server VM → Vault unseals itself
-- [ ] Rotating the IBM token in Vault updates the K8s Secret within the refresh interval
-- [ ] `qops-l3` is **denied** when reading QPU tokens; `qops-l1` is denied when reading the Kaggle key
-- [ ] Vault audit log shows every access; gitleaks is clean
+Definition of Done (`make verify-p4`)
+- [ ] The shared Vault answers, initialized and unsealed
+- [ ] `ClusterSecretStore vault` is Ready; `ExternalSecret tailscale/operator-oauth` shows `SecretSynced`
+- [ ] Deleting `tailscale/operator-oauth` brings it back from Vault within a minute; the Tailscale operator keeps working
+- [ ] `make verify-p3` still passes; gitleaks is clean
 
-Spike: OCI KMS auto-unseal (fallback `make unseal` over Tailscale). · Cost: $0.
+Moved out of P4: provider-token ExternalSecrets go to P7 (IBM, IonQ) and P9 (Kaggle), each phase adding its paths to
+`projects/quantumops.yaml`. The distinct ServiceAccounts (`qops-l1`, `qops-l3`, `job-tracker`) and their deny checks
+go with them. Vault's own reboot, audit and snapshot checks are done in shared-platform. · Cost: $0.
 
 ---
 
@@ -306,6 +315,8 @@ Cost: $0.
 **Goal:** see platform health, queue behavior, science results and cost in one place.
 
 Build
+- [ ] **Note ([ADR 0013](adr/0013-shared-vault.md)):** Alloy sends metrics, logs and traces to the shared Grafana
+      stack (shared-platform) instead of in-cluster Grafana and Loki. The items below get rewritten when P11 starts.
 - [ ] kube-prometheus-stack (short retention), Loki (filesystem) + Alloy via Argo CD, sized for the 12 GB node (single replicas, ≤ 2 GB for the whole monitoring stack)
 - [ ] Tracker metrics, Argo Workflows custom metrics, Grafana → Supabase (read-only role); Grafana via Tailscale
 - [ ] Dashboards as code: Platform (zero-idle KPI), Remote jobs (QPU + GPU waits, IBM and Kaggle quotas), Science, Cost

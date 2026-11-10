@@ -112,10 +112,13 @@ def test_dry_run_on_fresh_tenancy_plans_everything_and_changes_nothing(env: dict
     result = _run("oci.sh", "all", "--dry-run", env=env)
     assert result.returncode == 0, result.stderr
     out = result.stderr
-    assert out.count("[dry-run] oci --profile DEFAULT budgets budget budget create") == 1
-    assert out.count("budgets budget alert-rule create") == 4
-    assert "os bucket create" in out
-    assert "--versioning Enabled" in out
+    # The bucket and the budget belong to shared-platform's oci-foundation: only checked, never created here.
+    assert "budget create" not in out
+    assert "alert-rule create" not in out
+    assert "bucket create" not in out
+    assert "budget qops-always-free is missing" in out
+    assert "bucket qops-tofu-state is missing" in out
+    assert out.count("make apply STACK=oci-foundation") == 2
     assert "customer-secret-key create" in out
     assert not any(verb in f" {line} " for line in _calls(env).splitlines() for verb in MUTATING)
     assert not (Path(env["QOPS_CONFIG_DIR"]) / "oci.env").exists()
@@ -149,7 +152,8 @@ def test_rerun_when_ready_is_a_no_op(env: dict[str, str]) -> None:
     result = _run("oci.sh", "all", env=env)
     assert result.returncode == 0, result.stderr
     assert not any(verb in f" {line} " for line in _calls(env).splitlines() for verb in MUTATING)
-    assert "bucket qops-tofu-state (versioned)" in result.stdout
+    assert "bucket qops-tofu-state (versioned; owned by shared-platform)" in result.stdout
+    assert "budget qops-always-free (4 alerts; owned by shared-platform)" in result.stdout
 
 
 def test_existing_key_without_local_copy_refuses_without_rotate(env: dict[str, str]) -> None:

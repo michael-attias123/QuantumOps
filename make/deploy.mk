@@ -3,7 +3,7 @@ DEPLOY_SCRIPTS := deploy/bootstrap/scripts
 # Keep tailnet traffic off corporate HTTP proxies (same rule as infra/bootstrap/lib.sh).
 ON_TAILNET := NO_PROXY="100.64.0.0/10,.ts.net,$$NO_PROXY" no_proxy="100.64.0.0/10,.ts.net,$$no_proxy"
 
-.PHONY: bootstrap deploy-check argocd-status argocd-password
+.PHONY: bootstrap deploy-check argocd-status argocd-password seed-secrets secrets-status secrets-sync
 
 bootstrap: ## Install the platform from Git onto the cluster (Argo CD + root app); safe to rerun
 	bash $(DEPLOY_SCRIPTS)/bootstrap.sh
@@ -19,3 +19,12 @@ argocd-password: ## Copy the Argo CD admin password to the clipboard (prints it 
 	if command -v clip.exe >/dev/null; then printf '%s' "$$pw" | clip.exe; echo "copied to the Windows clipboard (user: admin)"; \
 	elif command -v pbcopy >/dev/null; then printf '%s' "$$pw" | pbcopy; echo "copied to the clipboard (user: admin)"; \
 	else echo "user: admin  password: $$pw"; fi
+
+seed-secrets: ## P4: copy secrets from OpenTofu output into the shared Vault (after make vault-login in shared-platform)
+	bash $(DEPLOY_SCRIPTS)/seed-secrets.sh
+
+secrets-status: ## P4: the Vault store and every ExternalSecret, with their sync state
+	$(ON_TAILNET) kubectl --context qops get clustersecretstores.external-secrets.io,externalsecrets.external-secrets.io -A
+
+secrets-sync: ## P4: make ESO re-read Vault now instead of at the next refresh
+	$(ON_TAILNET) kubectl --context qops annotate externalsecrets.external-secrets.io -A --all force-sync="$$(date +%s)" --overwrite

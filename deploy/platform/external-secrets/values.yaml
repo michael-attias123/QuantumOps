@@ -1,0 +1,19 @@
+# External Secrets Operator: copies secrets from the shared Vault into Kubernetes Secrets (ADR 0013).
+# It logs in with its own service-account token (JWT auth), so the cluster holds no Vault credential.
+# The chart's defaults already meet Pod Security "restricted" (non-root, read-only root, no capabilities).
+
+installCRDs: true
+
+resources:
+  requests: { cpu: 10m, memory: 48Mi }
+  limits: { memory: 192Mi }
+
+webhook:
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { memory: 128Mi }
+
+certController:
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { memory: 128Mi }

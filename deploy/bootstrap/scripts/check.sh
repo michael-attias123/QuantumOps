@@ -33,7 +33,8 @@ yaml.safe_dump(env.get("qops") or {}, sys.stdout)' "deploy/envs/$env/values.yaml
 done
 
 echo "==> plain manifests"
-validate deploy/bootstrap/root-app.yaml deploy/platform/namespaces deploy/platform/argocd-access
+validate deploy/bootstrap/root-app.yaml deploy/platform/namespaces deploy/platform/argocd-access \
+  deploy/platform/external-secrets-config
 
 echo "==> every Application points at something that exists"
 for env in oci ci; do
