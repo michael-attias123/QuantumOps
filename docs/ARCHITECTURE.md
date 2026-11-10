@@ -399,7 +399,7 @@ The GPU is treated as a **remote accelerator provider**, with the same interface
 ## 11. State layer (Supabase Free)
 
 Connection goes through the **Supavisor pooler in session mode**, because direct connections on the free tier are IPv6-only.
-In CI and offline dev the same code runs against in-cluster **Postgres + MinIO** (the `ci` overlay).
+In CI and offline dev the same code runs against in-cluster **Postgres + SeaweedFS** (the `ci` overlay).
 
 | Table | Key columns |
 |---|---|
@@ -606,7 +606,7 @@ later without chart changes.
 | OCI A1 capacity unavailable in the home region | P2 | retry, other availability domain, or choose region at signup |
 | OCI reclaims idle Always Free VMs (7 days) | P2+ | a running cluster stays busy; paid upgrade only with approval |
 | Kaggle startup latency, quota, API/ToS changes | P9+ | remote GPU only for heavy stages; CPU fallback always available |
-| Vault dynamic roles through Supavisor (`role.projectref`) | P5 | spike; fallback Vault static rotated roles |
+| Vault dynamic roles through Supavisor (`role.projectref`) | P5 | local spike with a dev Vault first; fallback Vault static rotated roles |
 | Qiskit 2.x compatibility of mthree / mitiq / qiskit-ionq / qiskit-braket-provider | P1 | **resolved**: pin matrix passes on amd64 + arm64 ([compat-matrix.md](reference/compat-matrix.md)) |
 | arm64 wheels for scientific packages | P1 | **resolved**: all have aarch64 wheels; mthree needs glibc ≥ 2.34 (base images must be Debian 12+/Ubuntu 22.04+) |
 | IBM queue times of hours | P7+ | expected (that's the point); tests use the emulator |
@@ -625,7 +625,7 @@ later without chart changes.
 4. **Sampler everywhere**, with expectation values computed in L3. Data stays provider-neutral and our own mitigation runs on it.
 5. **The QPU wait is the iteration boundary.** One workflow covers `postprocess(n) → prepare+submit(n+1)`, which supports
    iterative VQE/QAOA with zero idle pods.
-6. **Supabase behind interfaces.** Workers need only Postgres + S3, and CI uses in-cluster Postgres + MinIO.
+6. **Supabase behind interfaces.** Workers need only Postgres + S3, and CI uses in-cluster Postgres + SeaweedFS.
 7. **Error correction made concrete:** mitigation (M3, ZNE, CDR) and QEC decoding (PyMatching, CUDA-Q QEC) as pluggable
    stages with a CPU fallback for every GPU path.
 11. **Always-on free cloud cluster instead of a laptop cluster**, because the work happens from several computers: k3s on

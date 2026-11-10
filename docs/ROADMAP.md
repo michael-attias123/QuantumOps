@@ -189,20 +189,33 @@ go with them. Vault's own reboot, audit and snapshot checks are done in shared-p
 **Goal:** durable state with short-lived DB credentials, plus a free offline twin for CI.
 
 Build
-- [ ] `infra/supabase/` (OpenTofu, state encryption): free project + settings
-- [ ] `packages/qops-core/migrations/` (dbmate): `runs`, `iterations`, `remote_jobs`, `outbox`, `qpu_usage`, `gpu_usage`, `backend_cache`; RLS on, no policies
-- [ ] Storage bucket `qops-artifacts`, signed-URL helpers, retention CronJob
-- [ ] Argo CD PreSync migration Job (`qops-migrator` creds)
-- [ ] Vault DB secrets engine via the Supavisor pooler: `qops-worker`, `qops-tracker`, `qops-migrator`, `qops-grafana-ro`
+- [ ] `infra/supabase/` (OpenTofu, state encryption): project `quantumops` on the free plan (the account's second and
+      last free slot), the region closest to the cluster, the Data API locked down. The Supabase token comes from
+      `kv/shared/supabase`; the DB password is generated and lives only in encrypted state and Vault
+- [ ] `packages/qops-core/migrations/` (dbmate): `runs`, `iterations`, `remote_jobs`, `outbox`, `qpu_usage`,
+      `gpu_usage`, `backend_cache`; RLS on, no policies. Every object is owned by `qops_owner` (NOLOGIN) and
+      migrations run `SET ROLE qops_owner`, so an expiring migrator login never orphans a table
 - [ ] `qops-core.store` (Postgres + S3) with conditional state-transition helpers
-- [ ] `ci` overlay: in-cluster Postgres + MinIO
+- [ ] Spike, local only: a dev-mode Vault in WSL (never public) against the real pooler. Can Vault create a role
+      through Supavisor, can `<role>.<project-ref>` log in right away, is it gone after the TTL, do migrations work
+      under `qops_owner`? Yes → dynamic roles; no → Vault static roles with rotated passwords
+- [ ] Request to shared-platform (it owns Vault's config, [ADR 0013](adr/0013-shared-vault.md)): a database mount for
+      quantumops on our pooler, roles `qops-worker`, `qops-tracker`, `qops-migrator` and a rotated read-only
+      `qops-grafana-ro`, readable from `jwt-k8s-qops`; the admin password goes in once and is then rotated
+- [ ] Storage bucket `qops-artifacts` (S3 keys in `kv/quantumops/storage`), signed-URL helpers, retention CronJob
+- [ ] Argo CD PreSync migration Job; its `qops-migrator` creds come from an ESO `VaultDynamicSecret` generator
+- [ ] Keep the project awake (free projects pause after 7 idle days): the daily retention query, or a scheduled
+      Actions ping if that doesn't count as activity
+- [ ] `ci` overlay: in-cluster Postgres + SeaweedFS (MinIO stopped publishing images in 2025 and was archived in 2026)
 
 Definition of Done
-- [ ] A pod receives 1h dynamic creds; the role disappears after the TTL
+- [ ] A pod receives 1h dynamic creds; the role disappears after the TTL. If the spike says no: the password rotates
+      and the old one stops working
 - [ ] Hydrate/dehydrate round-trip tests pass against Supabase **and** the CI overlay
 - [ ] Concurrent claim test: exactly one of N workers wins a transition
+- [ ] No plan in this phase destroys anything
 
-Spike: dynamic roles through Supavisor (`role.projectref`); fallback Vault static rotated roles. · Cost: $0.
+Cost: $0.
 
 ---
 
