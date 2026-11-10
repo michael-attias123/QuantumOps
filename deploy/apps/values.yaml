@@ -42,6 +42,24 @@ apps:
       version: 1.104.4
     valuesFile: deploy/platform/tailscale-operator/values.yaml
 
+  # P4: secrets come from the shared Vault (shared-platform), synced into Kubernetes Secrets by ESO.
+  external-secrets:
+    enabled: true
+    wave: 0
+    namespace: external-secrets
+    releaseName: external-secrets
+    chart:
+      repo: https://charts.external-secrets.io
+      name: external-secrets
+      version: 2.14.0
+    valuesFile: deploy/platform/external-secrets/values.yaml
+
+  external-secrets-config:
+    enabled: true
+    wave: 1
+    namespace: external-secrets
+    path: deploy/platform/external-secrets-config
+
   argocd-access:
     enabled: true
     wave: 1

@@ -9,3 +9,8 @@ paths = [
   '''docs/reference/''',
   '''uv\.lock''',
 ]
+
+# ExternalSecret remoteRef keys are Vault path names (kv/<project>/<path>), never values.
+regexes = [
+  '''^quantumops/[a-z0-9/_-]+$''',
+]

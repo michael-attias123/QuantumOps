@@ -4,12 +4,15 @@
 #
 #   login       browser login; creates the API key pair and ~/.oci/config (`oci setup bootstrap`)
 #   limits      prints Ampere A1 and GPU A10 limits and an estimated trial end date
-#   budgets     one $1 budget (OCI allows one per compartment) with alerts at 1% (any spend) and at $50/$150/$250 (trial credits)
-#   bucket      versioned OpenTofu state bucket (default qops-tofu-state)
+#   budgets     checks the $1 budget and its alerts exist (owned by shared-platform stacks/oci-foundation)
+#   bucket      checks the versioned OpenTofu state bucket exists (owned by shared-platform stacks/oci-foundation)
 #   secret-key  S3-compatible key for the state bucket -> ~/.config/qops/oci.env (0600, never printed)
 #   all         limits, budgets, bucket, secret-key (default)
 #
-# Env: OCI_CLI_PROFILE (DEFAULT), QOPS_STATE_BUCKET (qops-tofu-state), QOPS_ALERT_EMAIL (your OCI user's email).
+# Env: OCI_CLI_PROFILE (DEFAULT), QOPS_STATE_BUCKET (qops-tofu-state).
+#
+# The state bucket and the budget are shared by every project, so shared-platform's stacks/oci-foundation owns them
+# (imported, prevent_destroy). This script only checks them; fix anything it reports there, not here.
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 parse_common_args "$@"
@@ -92,46 +95,17 @@ budget_id() {
     jq -r --arg n "$1" '.data[]? | select(."display-name" == $n) | .id' | head -n1
 }
 
-ensure_budget() {
-  local name="$1" amount="$2" desc="$3" id
-  id="$(budget_id "$name")"
-  if [[ -n "$id" ]]; then
-    ok "budget $name"
-  else
-    info "creating budget $name (\$$amount / month)"
-    run oci --profile "$OCI_CLI_PROFILE" budgets budget budget create --compartment-id "$TENANCY" \
-      --amount "$amount" --reset-period MONTHLY --target-type COMPARTMENT --targets "[\"$TENANCY\"]" \
-      --display-name "$name" --description "$desc" >/dev/null
-    id="$(budget_id "$name")"
-    [[ -n "$id" || "$QOPS_DRY_RUN" == "1" ]] || die "budget $name was not created"
-  fi
-  BUDGET_ID="${id:-<new-$name>}"
-}
-
-ensure_alert() {
-  local budget="$1" name="$2" type="$3" threshold="$4"
-  if [[ "$budget" != "<new-"* ]] &&
-    ocij budgets budget alert-rule list --budget-id "$budget" --all 2>/dev/null |
-    jq -e --arg n "$name" '.data[]? | select(."display-name" == $n)' >/dev/null; then
-    ok "  alert $name"
-    return
-  fi
-  info "  alert $name -> $EMAIL"
-  run oci --profile "$OCI_CLI_PROFILE" budgets budget alert-rule create --budget-id "$budget" --display-name "$name" \
-    --type ACTUAL --threshold "$threshold" --threshold-type "$type" --recipients "$EMAIL" \
-    --message "QuantumOps: OCI spend crossed $name. Check Billing -> Cost Analysis." >/dev/null
-}
+OWNER_HINT="it's owned by shared-platform: make plan STACK=oci-foundation, then make apply STACK=oci-foundation"
 
 step_budgets() {
-  EMAIL="${QOPS_ALERT_EMAIL:-$(ocij iam user get --user-id "$USER_OCID" 2>/dev/null | jq -r '.data.email // empty')}"
-  [[ -n "$EMAIL" ]] || die "no email on your OCI user. Rerun with QOPS_ALERT_EMAIL=you@example.com"
-  # OCI allows only one budget per target compartment, so every alert hangs off the same $1 budget.
-  # Absolute thresholds above the budget amount are accepted; they track Free Trial credit spend (ADR 0010).
-  ensure_budget "$BUDGET_NAME" 1 "Always Free guard: any spend at all is a surprise"
-  ensure_alert "$BUDGET_ID" any-spend PERCENTAGE 1
-  ensure_alert "$BUDGET_ID" credits-50 ABSOLUTE 50
-  ensure_alert "$BUDGET_ID" credits-150 ABSOLUTE 150
-  ensure_alert "$BUDGET_ID" credits-250 ABSOLUTE 250
+  local id rules
+  id="$(budget_id "$BUDGET_NAME")"
+  if [[ -z "$id" ]]; then
+    warn "budget $BUDGET_NAME is missing; $OWNER_HINT"
+    return
+  fi
+  rules="$(ocij budgets budget alert-rule list --budget-id "$id" --all 2>/dev/null | jq -r '.data | length')"
+  ok "budget $BUDGET_NAME ($rules alerts; owned by shared-platform)"
 }
 
 step_bucket() {
@@ -140,17 +114,15 @@ step_bucket() {
   versioning="$(ocij os bucket get --namespace-name "$NAMESPACE" --bucket-name "$BUCKET" 2>/dev/null |
     jq -r '.data.versioning // empty' || true)"
   if [[ -z "$versioning" ]]; then
-    info "creating bucket $BUCKET (versioned, private)"
-    run oci --profile "$OCI_CLI_PROFILE" os bucket create --namespace-name "$NAMESPACE" --compartment-id "$TENANCY" \
-      --name "$BUCKET" --versioning Enabled --public-access-type NoPublicAccess >/dev/null
+    warn "bucket $BUCKET is missing; $OWNER_HINT"
   elif [[ "$versioning" != "Enabled" ]]; then
-    info "enabling versioning on $BUCKET"
-    run oci --profile "$OCI_CLI_PROFILE" os bucket update --namespace-name "$NAMESPACE" --bucket-name "$BUCKET" \
-      --versioning Enabled >/dev/null
+    warn "bucket $BUCKET has versioning $versioning (should be Enabled); $OWNER_HINT"
   else
-    ok "bucket $BUCKET (versioned)"
+    ok "bucket $BUCKET (versioned; owned by shared-platform)"
   fi
-  printf '   namespace: %s\n   S3 endpoint: https://%s.compat.objectstorage.%s.oci.customer-oci.com\n' \
+  printf '   namespace: %s
+   S3 endpoint: https://%s.compat.objectstorage.%s.oci.customer-oci.com
+' \
     "$NAMESPACE" "$NAMESPACE" "$REGION"
 }
 

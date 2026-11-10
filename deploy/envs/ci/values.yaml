@@ -1,9 +1,12 @@
 # kind in GitHub Actions (P6 e2e). No tailnet there: the Tailscale operator and the Argo CD ingress are off.
+# kind can't log in to the shared Vault (its service-account key isn't registered there), so the store is off too.
 
 apps:
   tailscale-operator:
     enabled: false
   argocd-access:
+    enabled: false
+  external-secrets-config:
     enabled: false
 
 qops:

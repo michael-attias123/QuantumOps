@@ -1,0 +1,26 @@
+# The Tailscale operator's OAuth client (infra/oci tailscale_oauth_client), from kv/quantumops/tailscale.
+# `make seed-secrets` puts it there. ESO owns the Secret: delete it and it comes back on the next sync.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: operator-oauth
+  namespace: tailscale
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  target:
+    name: operator-oauth
+    creationPolicy: Owner
+  data:
+    - secretKey: client_id
+      remoteRef:
+        key: quantumops/tailscale # gitleaks:allow (a Vault path, not a value)
+        property: oauth_client_id
+    - secretKey: client_secret
+      remoteRef:
+        key: quantumops/tailscale # gitleaks:allow (a Vault path, not a value)
+        property: oauth_client_secret

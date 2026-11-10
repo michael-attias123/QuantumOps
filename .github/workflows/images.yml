@@ -6,7 +6,8 @@ name: images
 on:
   push:
     branches: [main]
-    paths: &image_paths
+    # Same list in both triggers (actionlint can't read YAML anchors here).
+    paths:
       - "packages/**"
       - "research/algorithms/**"
       - "pyproject.toml"
@@ -15,7 +16,14 @@ on:
       - ".dockerignore"
       - ".github/workflows/images.yml"
   pull_request:
-    paths: *image_paths
+    paths:
+      - "packages/**"
+      - "research/algorithms/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".python-version"
+      - ".dockerignore"
+      - ".github/workflows/images.yml"
   workflow_dispatch:
 
 permissions:
