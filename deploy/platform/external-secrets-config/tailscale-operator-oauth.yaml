@@ -18,9 +18,9 @@ spec:
   data:
     - secretKey: client_id
       remoteRef:
-        key: quantumops/tailscale
+        key: quantumops/tailscale # gitleaks:allow (a Vault path, not a value)
         property: oauth_client_id
     - secretKey: client_secret
       remoteRef:
-        key: quantumops/tailscale
+        key: quantumops/tailscale # gitleaks:allow (a Vault path, not a value)
         property: oauth_client_secret
